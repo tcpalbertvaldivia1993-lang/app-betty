@@ -1,0 +1,285 @@
+"""Acceso a la base de datos SQLite de la clínica.
+
+Este módulo no usa Streamlit: solo guarda y lee datos.
+Así se puede probar con pytest sin abrir la interfaz.
+"""
+
+import sqlite3
+from datetime import date
+from pathlib import Path
+
+import pandas as pd
+
+# Ruta del archivo de la base de datos (junto a este script)
+RUTA_BD = Path(__file__).parent / "clinica.db"
+
+ESTADOS_CITA = ["programada", "atendida", "cancelada", "no_asistio"]
+
+
+def obtener_conexion(ruta=None):
+    """Abre una conexión con las claves foráneas activadas."""
+    conexion = sqlite3.connect(ruta or RUTA_BD)
+    conexion.row_factory = sqlite3.Row  # permite leer columnas por nombre
+    conexion.execute("PRAGMA foreign_keys = ON")
+    return conexion
+
+
+def crear_tablas(ruta=None):
+    """Crea las tablas si todavía no existen."""
+    with obtener_conexion(ruta) as conexion:
+        conexion.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS pacientes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
+                apellido TEXT NOT NULL,
+                telefono TEXT,
+                email TEXT,
+                fecha_nacimiento TEXT,
+                notas TEXT,
+                creado_en TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS doctores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
+                especialidad TEXT NOT NULL,
+                telefono TEXT,
+                activo INTEGER NOT NULL DEFAULT 1
+            );
+
+            CREATE TABLE IF NOT EXISTS citas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+                doctor_id INTEGER NOT NULL REFERENCES doctores(id),
+                fecha TEXT NOT NULL,          -- 'YYYY-MM-DD'
+                hora_inicio TEXT NOT NULL,    -- 'HH:MM'
+                duracion_min INTEGER NOT NULL DEFAULT 30,
+                motivo TEXT,
+                estado TEXT NOT NULL DEFAULT 'programada'
+                    CHECK (estado IN ('programada', 'atendida', 'cancelada', 'no_asistio')),
+                creado_en TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+        )
+    conexion.close()
+
+
+# ---------- Pacientes ----------
+
+def agregar_paciente(nombre, apellido, telefono="", email="",
+                     fecha_nacimiento=None, notas="", ruta=None):
+    """Guarda un paciente nuevo y devuelve su id."""
+    if not nombre.strip() or not apellido.strip():
+        raise ValueError("El nombre y el apellido son obligatorios.")
+    with obtener_conexion(ruta) as conexion:
+        cursor = conexion.execute(
+            """INSERT INTO pacientes (nombre, apellido, telefono, email, fecha_nacimiento, notas)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (nombre.strip(), apellido.strip(), telefono, email,
+             str(fecha_nacimiento) if fecha_nacimiento else None, notas),
+        )
+        nuevo_id = cursor.lastrowid
+    conexion.close()
+    return nuevo_id
+
+
+def actualizar_paciente(paciente_id, nombre, apellido, telefono="", email="",
+                        fecha_nacimiento=None, notas="", ruta=None):
+    """Modifica los datos de un paciente existente."""
+    if not nombre.strip() or not apellido.strip():
+        raise ValueError("El nombre y el apellido son obligatorios.")
+    with obtener_conexion(ruta) as conexion:
+        conexion.execute(
+            """UPDATE pacientes
+               SET nombre = ?, apellido = ?, telefono = ?, email = ?,
+                   fecha_nacimiento = ?, notas = ?
+               WHERE id = ?""",
+            (nombre.strip(), apellido.strip(), telefono, email,
+             str(fecha_nacimiento) if fecha_nacimiento else None, notas, paciente_id),
+        )
+    conexion.close()
+
+
+def listar_pacientes(ruta=None):
+    """Devuelve todos los pacientes como DataFrame."""
+    with obtener_conexion(ruta) as conexion:
+        tabla = pd.read_sql_query(
+            "SELECT * FROM pacientes ORDER BY apellido, nombre", conexion
+        )
+    conexion.close()
+    return tabla
+
+
+def buscar_pacientes(texto, ruta=None):
+    """Busca pacientes por nombre, apellido o teléfono."""
+    patron = f"%{texto.strip()}%"
+    with obtener_conexion(ruta) as conexion:
+        tabla = pd.read_sql_query(
+            """SELECT * FROM pacientes
+               WHERE nombre LIKE ? OR apellido LIKE ? OR telefono LIKE ?
+                     OR (nombre || ' ' || apellido) LIKE ?
+               ORDER BY apellido, nombre""",
+            conexion,
+            params=(patron, patron, patron, patron),
+        )
+    conexion.close()
+    return tabla
+
+
+# ---------- Doctores ----------
+
+def agregar_doctor(nombre, especialidad, telefono="", ruta=None):
+    """Guarda un doctor nuevo y devuelve su id."""
+    if not nombre.strip() or not especialidad.strip():
+        raise ValueError("El nombre y la especialidad son obligatorios.")
+    with obtener_conexion(ruta) as conexion:
+        cursor = conexion.execute(
+            "INSERT INTO doctores (nombre, especialidad, telefono) VALUES (?, ?, ?)",
+            (nombre.strip(), especialidad.strip(), telefono),
+        )
+        nuevo_id = cursor.lastrowid
+    conexion.close()
+    return nuevo_id
+
+
+def listar_doctores(solo_activos=True, ruta=None):
+    """Devuelve los doctores como DataFrame."""
+    consulta = "SELECT * FROM doctores"
+    if solo_activos:
+        consulta += " WHERE activo = 1"
+    consulta += " ORDER BY nombre"
+    with obtener_conexion(ruta) as conexion:
+        tabla = pd.read_sql_query(consulta, conexion)
+    conexion.close()
+    return tabla
+
+
+def desactivar_doctor(doctor_id, ruta=None):
+    """Marca a un doctor como inactivo (no se borra para conservar sus citas)."""
+    with obtener_conexion(ruta) as conexion:
+        conexion.execute("UPDATE doctores SET activo = 0 WHERE id = ?", (doctor_id,))
+    conexion.close()
+
+
+# ---------- Citas ----------
+
+def _a_minutos(hora):
+    """Convierte 'HH:MM' en minutos desde medianoche."""
+    horas, minutos = hora.split(":")
+    return int(horas) * 60 + int(minutos)
+
+
+def hay_choque_horario(doctor_id, fecha, hora_inicio, duracion,
+                       excluir_id=None, ruta=None):
+    """True si el doctor ya tiene otra cita (no cancelada) que se solapa."""
+    with obtener_conexion(ruta) as conexion:
+        filas = conexion.execute(
+            """SELECT id, hora_inicio, duracion_min FROM citas
+               WHERE doctor_id = ? AND fecha = ? AND estado != 'cancelada'""",
+            (doctor_id, str(fecha)),
+        ).fetchall()
+    conexion.close()
+
+    inicio_nueva = _a_minutos(hora_inicio)
+    fin_nueva = inicio_nueva + duracion
+    for fila in filas:
+        if excluir_id is not None and fila["id"] == excluir_id:
+            continue
+        inicio = _a_minutos(fila["hora_inicio"])
+        fin = inicio + fila["duracion_min"]
+        # Dos intervalos se solapan si cada uno empieza antes de que acabe el otro
+        if inicio_nueva < fin and inicio < fin_nueva:
+            return True
+    return False
+
+
+def _validar_cita(doctor_id, fecha, hora_inicio, duracion, excluir_id, ruta):
+    if date.fromisoformat(str(fecha)) < date.today():
+        raise ValueError("No se puede agendar una cita en una fecha pasada.")
+    if hay_choque_horario(doctor_id, fecha, hora_inicio, duracion, excluir_id, ruta):
+        raise ValueError("El doctor ya tiene una cita en ese horario.")
+
+
+def agendar_cita(paciente_id, doctor_id, fecha, hora_inicio,
+                 duracion_min=30, motivo="", ruta=None):
+    """Crea una cita nueva si el horario está libre. Devuelve su id."""
+    _validar_cita(doctor_id, fecha, hora_inicio, duracion_min, None, ruta)
+    with obtener_conexion(ruta) as conexion:
+        cursor = conexion.execute(
+            """INSERT INTO citas (paciente_id, doctor_id, fecha, hora_inicio, duracion_min, motivo)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (paciente_id, doctor_id, str(fecha), hora_inicio, duracion_min, motivo),
+        )
+        nuevo_id = cursor.lastrowid
+    conexion.close()
+    return nuevo_id
+
+
+def reprogramar_cita(cita_id, fecha, hora_inicio, ruta=None):
+    """Cambia la fecha y hora de una cita, comprobando que no choque."""
+    with obtener_conexion(ruta) as conexion:
+        cita = conexion.execute(
+            "SELECT doctor_id, duracion_min FROM citas WHERE id = ?", (cita_id,)
+        ).fetchone()
+    conexion.close()
+    if cita is None:
+        raise ValueError("La cita no existe.")
+
+    _validar_cita(cita["doctor_id"], fecha, hora_inicio, cita["duracion_min"], cita_id, ruta)
+    with obtener_conexion(ruta) as conexion:
+        conexion.execute(
+            "UPDATE citas SET fecha = ?, hora_inicio = ?, estado = 'programada' WHERE id = ?",
+            (str(fecha), hora_inicio, cita_id),
+        )
+    conexion.close()
+
+
+def cambiar_estado_cita(cita_id, estado, ruta=None):
+    """Cambia el estado: programada, atendida, cancelada o no_asistio."""
+    if estado not in ESTADOS_CITA:
+        raise ValueError(f"Estado no válido: {estado}")
+    with obtener_conexion(ruta) as conexion:
+        conexion.execute("UPDATE citas SET estado = ? WHERE id = ?", (estado, cita_id))
+    conexion.close()
+
+
+def citas_por_rango(desde, hasta, doctor_id=None, ruta=None):
+    """Devuelve las citas entre dos fechas (incluidas) con nombres de paciente y doctor."""
+    consulta = """
+        SELECT c.id, c.fecha, c.hora_inicio, c.duracion_min,
+               p.nombre || ' ' || p.apellido AS paciente,
+               d.nombre AS doctor, d.especialidad,
+               c.motivo, c.estado, c.paciente_id, c.doctor_id
+        FROM citas c
+        JOIN pacientes p ON p.id = c.paciente_id
+        JOIN doctores d ON d.id = c.doctor_id
+        WHERE c.fecha BETWEEN ? AND ?
+    """
+    parametros = [str(desde), str(hasta)]
+    if doctor_id is not None:
+        consulta += " AND c.doctor_id = ?"
+        parametros.append(doctor_id)
+    consulta += " ORDER BY c.fecha, c.hora_inicio"
+
+    with obtener_conexion(ruta) as conexion:
+        tabla = pd.read_sql_query(consulta, conexion, params=parametros)
+    conexion.close()
+    return tabla
+
+
+def estadisticas(desde, hasta, ruta=None):
+    """Cuenta las citas por doctor y estado en un rango de fechas."""
+    with obtener_conexion(ruta) as conexion:
+        tabla = pd.read_sql_query(
+            """SELECT d.nombre AS doctor, c.estado, COUNT(*) AS total
+               FROM citas c
+               JOIN doctores d ON d.id = c.doctor_id
+               WHERE c.fecha BETWEEN ? AND ?
+               GROUP BY d.nombre, c.estado
+               ORDER BY d.nombre, c.estado""",
+            conexion,
+            params=(str(desde), str(hasta)),
+        )
+    conexion.close()
+    return tabla
