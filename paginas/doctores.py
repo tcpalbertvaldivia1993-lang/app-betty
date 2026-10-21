@@ -1,4 +1,4 @@
-"""Registrar y desactivar doctores."""
+"""Registrar, desactivar y reactivar doctores."""
 
 import streamlit as st
 
@@ -22,22 +22,40 @@ with st.form("form_nuevo_doctor", clear_on_submit=True):
 
 st.subheader(t("lista_doctores"))
 mostrar_inactivos = st.checkbox(t("mostrar_inactivos"))
-doctores = bd.listar_doctores(solo_activos=not mostrar_inactivos)
+doctores = bd.listar_doctores(solo_activos=False)
+activos = doctores[doctores["activo"] == 1]
+inactivos = doctores[doctores["activo"] == 0]
 
 if doctores.empty:
     st.info(t("sin_doctores"))
 else:
-    # "nombre" de un doctor es el nombre completo: se muestra como columna "Doctor"
-    st.dataframe(
-        preparar_tabla(doctores.rename(columns={"nombre": "doctor"})), hide_index=True, width="stretch"
-    )
+    tabla = doctores if mostrar_inactivos else activos
+    if tabla.empty:
+        st.info(t("sin_doctores_activos"))
+    else:
+        # "nombre" de un doctor es el nombre completo: se muestra como columna "Doctor"
+        st.dataframe(
+            preparar_tabla(tabla.rename(columns={"nombre": "doctor"})), hide_index=True, width="stretch"
+        )
 
-    activos = doctores[doctores["activo"] == 1]
+    col_desactivar, col_reactivar = st.columns(2)
+
     if not activos.empty:
-        st.subheader(t("desactivar_doctor"))
-        st.caption(t("desactivar_doctor_ayuda"))
-        opciones = {f"{fila.nombre} - {fila.especialidad}": int(fila.id) for fila in activos.itertuples()}
-        elegido = st.selectbox(t("campo_doctor"), list(opciones))
-        if st.button(t("boton_desactivar")):
-            bd.desactivar_doctor(opciones[elegido])
-            st.rerun()
+        with col_desactivar:
+            st.subheader(t("desactivar_doctor"))
+            st.caption(t("desactivar_doctor_ayuda"))
+            opciones = {f"{fila.nombre} - {fila.especialidad}": int(fila.id) for fila in activos.itertuples()}
+            elegido = st.selectbox(t("campo_doctor"), list(opciones), key="doctor_desactivar")
+            if st.button(t("boton_desactivar")):
+                bd.desactivar_doctor(opciones[elegido])
+                st.rerun()
+
+    if not inactivos.empty:
+        with col_reactivar:
+            st.subheader(t("reactivar_doctor"))
+            st.caption(t("reactivar_doctor_ayuda"))
+            opciones = {f"{fila.nombre} - {fila.especialidad}": int(fila.id) for fila in inactivos.itertuples()}
+            elegido = st.selectbox(t("campo_doctor"), list(opciones), key="doctor_reactivar")
+            if st.button(t("boton_reactivar")):
+                bd.reactivar_doctor(opciones[elegido])
+                st.rerun()

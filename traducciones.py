@@ -137,6 +137,16 @@ TEXTOS = {
     },
     "campo_doctor": {"es": "Doctor", "en": "Doctor"},
     "boton_desactivar": {"es": "Desactivar", "en": "Deactivate"},
+    "sin_doctores_activos": {
+        "es": "No hay doctores activos. Marca «Mostrar también los inactivos» para verlos todos.",
+        "en": "There are no active doctors. Tick “Also show inactive doctors” to see them all.",
+    },
+    "reactivar_doctor": {"es": "Reactivar doctor", "en": "Reactivate doctor"},
+    "reactivar_doctor_ayuda": {
+        "es": "El doctor vuelve a aparecer al agendar citas.",
+        "en": "The doctor appears again when booking appointments.",
+    },
+    "boton_reactivar": {"es": "Reactivar", "en": "Reactivate"},
 
     # ---------- Citas ----------
     "citas_titulo": {"es": "📅 Citas", "en": "📅 Appointments"},

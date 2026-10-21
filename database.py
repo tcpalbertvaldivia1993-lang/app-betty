@@ -316,6 +316,13 @@ def desactivar_doctor(doctor_id, ruta=None):
     conexion.close()
 
 
+def reactivar_doctor(doctor_id, ruta=None):
+    """Vuelve a marcar a un doctor como activo, para que aparezca al agendar citas."""
+    with obtener_conexion(ruta) as conexion:
+        conexion.execute("UPDATE doctores SET activo = 1 WHERE id = ?", (doctor_id,))
+    conexion.close()
+
+
 # ---------- Citas ----------
 
 def _a_minutos(hora):

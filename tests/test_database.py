@@ -54,6 +54,15 @@ def test_desactivar_doctor(ruta, datos):
     assert len(bd.listar_doctores(solo_activos=False, ruta=ruta)) == 1
 
 
+def test_reactivar_doctor(ruta, datos):
+    paciente_id, doctor_id = datos
+    bd.desactivar_doctor(doctor_id, ruta)
+    bd.reactivar_doctor(doctor_id, ruta)
+    assert len(bd.listar_doctores(ruta=ruta)) == 1
+    # Ya reactivado, se le pueden volver a agendar citas
+    bd.agendar_cita(paciente_id, doctor_id, MANANA, "09:00", ruta=ruta)
+
+
 def test_agendar_cita(ruta, datos):
     paciente_id, doctor_id = datos
     bd.agendar_cita(paciente_id, doctor_id, MANANA, "09:00", ruta=ruta)

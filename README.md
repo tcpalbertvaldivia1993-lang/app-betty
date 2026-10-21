@@ -20,7 +20,7 @@ Aplicación web hecha con **Streamlit** y **SQLite** para gestionar las citas de
   Siempre debe quedar al menos un administrador activo.
 - **Inicio**: resumen de las citas de hoy y de los próximos 7 días.
 - **Pacientes**: registrar, buscar y editar pacientes.
-- **Doctores**: registrar doctores y desactivarlos.
+- **Doctores**: registrar doctores, desactivarlos y volver a activarlos.
 - **Citas**: agendar, reprogramar y cambiar el estado (programada, atendida, cancelada, no asistió).
   La app no deja agendar dos citas que se solapen con el mismo doctor ni citas en fechas pasadas.
 - **Calendario**: ver citas por día o semana y un gráfico por doctor y estado.
