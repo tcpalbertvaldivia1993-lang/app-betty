@@ -5,38 +5,39 @@ from datetime import date, timedelta
 import streamlit as st
 
 import database as bd
+from traducciones import formatear_fecha, preparar_tabla, t
 
-st.title("🏥 Citas de la clínica")
-st.caption("Usa el menú de la izquierda para gestionar pacientes, doctores y citas.")
+st.title(t("inicio_titulo"))
+st.caption(t("inicio_ayuda"))
 
 hoy = date.today()
 citas_hoy = bd.citas_por_rango(hoy, hoy)
 
 # Métricas del día
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Citas hoy", len(citas_hoy))
-col2.metric("Pendientes", int((citas_hoy["estado"] == "programada").sum()))
-col3.metric("Atendidas", int((citas_hoy["estado"] == "atendida").sum()))
-col4.metric("Canceladas", int((citas_hoy["estado"] == "cancelada").sum()))
+col1.metric(t("metrica_citas_hoy"), len(citas_hoy))
+col2.metric(t("metrica_pendientes"), int((citas_hoy["estado"] == "programada").sum()))
+col3.metric(t("metrica_atendidas"), int((citas_hoy["estado"] == "atendida").sum()))
+col4.metric(t("metrica_canceladas"), int((citas_hoy["estado"] == "cancelada").sum()))
 
-st.subheader(f"Agenda de hoy ({hoy:%d/%m/%Y})")
+st.subheader(t("agenda_hoy", fecha=formatear_fecha(hoy)))
 if citas_hoy.empty:
-    st.info("No hay citas para hoy.")
+    st.info(t("sin_citas_hoy"))
 else:
     st.dataframe(
-        citas_hoy[["hora_inicio", "paciente", "doctor", "motivo", "estado"]],
+        preparar_tabla(citas_hoy[["hora_inicio", "paciente", "doctor", "motivo", "estado"]]),
         hide_index=True,
         width="stretch",
     )
 
-st.subheader("Próximos 7 días")
+st.subheader(t("proximos_7"))
 proximas = bd.citas_por_rango(hoy + timedelta(days=1), hoy + timedelta(days=7))
 proximas = proximas[proximas["estado"] == "programada"]
 if proximas.empty:
-    st.info("No hay citas programadas para los próximos días.")
+    st.info(t("sin_citas_proximas"))
 else:
     st.dataframe(
-        proximas[["fecha", "hora_inicio", "paciente", "doctor", "motivo"]],
+        preparar_tabla(proximas[["fecha", "hora_inicio", "paciente", "doctor", "motivo"]]),
         hide_index=True,
         width="stretch",
     )
