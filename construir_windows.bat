@@ -20,7 +20,7 @@ echo === 3/4 Empaquetando con PyInstaller ===
 .venv-win\Scripts\python -m PyInstaller --noconfirm --clean --onedir --name ClinicaCitas ^
     --collect-all streamlit --copy-metadata streamlit ^
     --add-data "app.py;." --add-data "database.py;." --add-data "traducciones.py;." ^
-    --add-data "paginas;paginas" ^
+    --add-data "demo.py;." --add-data "datos_ejemplo.py;." --add-data "paginas;paginas" ^
     lanzador.py || goto :error
 
 echo === 4/4 Comprimiendo en ZIP ===
