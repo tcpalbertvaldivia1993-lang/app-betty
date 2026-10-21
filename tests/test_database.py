@@ -219,6 +219,31 @@ def test_migracion_base_antigua(tmp_path):
     assert bd.verificar_usuario("dueno", "clave-segura", ruta_vieja)
 
 
+def test_reiniciar_datos(ruta, datos):
+    paciente_id, doctor_id = datos
+    bd.agendar_cita(paciente_id, doctor_id, MANANA, "09:00", ruta=ruta)
+    bd.crear_usuario("dueno", "clave-segura", rol="administrador", ruta=ruta)
+
+    respaldo, borrados = bd.reiniciar_datos(ruta)
+
+    assert borrados == {"citas": 1, "doctores": 1, "pacientes": 1}
+    assert bd.contar_datos(ruta) == {"citas": 0, "doctores": 0, "pacientes": 0}
+    # Los usuarios se conservan
+    assert bd.verificar_usuario("dueno", "clave-segura", ruta)
+    # El respaldo tiene los datos de antes
+    assert respaldo.parent == ruta.parent / "respaldos"
+    assert bd.contar_datos(respaldo) == {"citas": 1, "doctores": 1, "pacientes": 1}
+    # Los ID vuelven a empezar desde 1
+    assert bd.agregar_doctor("Dr. Nuevo", "Pediatría", ruta=ruta) == 1
+
+
+def test_respaldos_no_se_pisan(ruta):
+    primero = bd.crear_respaldo(ruta)
+    segundo = bd.crear_respaldo(ruta)
+    assert primero != segundo
+    assert primero.exists() and segundo.exists()
+
+
 def test_estadisticas(ruta, datos):
     paciente_id, doctor_id = datos
     bd.agendar_cita(paciente_id, doctor_id, MANANA, "09:00", ruta=ruta)

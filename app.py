@@ -89,6 +89,7 @@ else:
     # Solo el administrador puede gestionar los usuarios del personal
     if datos_usuario["rol"] == "administrador":
         paginas.append(st.Page("paginas/usuarios.py", title=t("pag_usuarios"), icon="👥"))
+        paginas.append(st.Page("paginas/reiniciar.py", title=t("pag_reiniciar"), icon="⚠️"))
     pagina = st.navigation(paginas)
 
 pagina.run()

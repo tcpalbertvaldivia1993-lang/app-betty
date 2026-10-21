@@ -18,6 +18,9 @@ Aplicación web hecha con **Streamlit** y **SQLite** para gestionar las citas de
   - `personal`: usa toda la app excepto la página Usuarios.
 
   Siempre debe quedar al menos un administrador activo.
+- **Reiniciar datos** (solo administradores): borra todos los doctores, pacientes y citas para
+  empezar de cero; los usuarios se conservan. Pide marcar una casilla y escribir `BORRAR`
+  (en inglés, `DELETE`). Antes de borrar guarda una copia en `respaldos/`.
 - **Inicio**: resumen de las citas de hoy y de los próximos 7 días.
 - **Pacientes**: registrar, buscar y editar pacientes.
 - **Doctores**: registrar doctores, desactivarlos y volver a activarlos.
@@ -45,6 +48,15 @@ Si alguien del personal olvida su contraseña, el administrador la restablece en
 Si la olvida el único administrador, hay que borrar todas las filas de la tabla `usuarios`
 en `clinica.db` (también las del personal); al abrir la app pedirá crear el administrador otra vez.
 
+### Recuperar un respaldo
+
+Cada vez que se reinician los datos se guarda una copia en `respaldos/` (por ejemplo
+`respaldos/clinica_2026-10-21_17-42-34.db`). Para volver a ella, con la app detenida:
+
+```bash
+cp respaldos/clinica_2026-10-21_17-42-34.db clinica.db
+```
+
 ### Datos de ejemplo
 
 Para probar la app con datos (4 doctores, 12 pacientes y citas de las últimas 2 semanas y las próximas 2):
@@ -68,6 +80,7 @@ Solo funciona con la base de datos vacía. Para volver a empezar, borra `clinica
 | `app.py` | Entrada: pide usuario y contraseña y arma el menú de páginas |
 | `database.py` | Tablas y funciones para guardar/leer datos y verificar usuarios |
 | `paginas/` | Una página por sección (solo se ven con la sesión iniciada) |
+| `respaldos/` | Copias de seguridad creadas al reiniciar los datos (no se suben a Git) |
 | `traducciones.py` | Textos de la app en español e inglés |
 | `datos_ejemplo.py` | Llena la base de datos con datos de prueba |
 | `tests/` | Pruebas de `database.py` y de las traducciones |

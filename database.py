@@ -8,7 +8,7 @@ import hashlib
 import hmac
 import secrets
 import sqlite3
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -444,3 +444,59 @@ def estadisticas(desde, hasta, ruta=None):
         )
     conexion.close()
     return tabla
+
+
+# ---------- Reiniciar datos ----------
+
+# Orden de borrado: primero las citas, porque apuntan a doctores y pacientes
+TABLAS_DE_DATOS = ["citas", "doctores", "pacientes"]
+
+
+def contar_datos(ruta=None):
+    """Cuántas filas hay en cada tabla de datos. Ej.: {"citas": 212, "doctores": 4, ...}"""
+    with obtener_conexion(ruta) as conexion:
+        # Los nombres de tabla vienen de la lista fija de arriba, no de lo que escribe el usuario
+        conteos = {
+            tabla: conexion.execute(f"SELECT COUNT(*) FROM {tabla}").fetchone()[0]
+            for tabla in TABLAS_DE_DATOS
+        }
+    conexion.close()
+    return conteos
+
+
+def crear_respaldo(ruta=None):
+    """Copia la base de datos a la carpeta respaldos/ y devuelve la ruta de la copia."""
+    ruta = Path(ruta or RUTA_BD)
+    carpeta = ruta.parent / "respaldos"
+    carpeta.mkdir(exist_ok=True)
+    marca = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    destino = carpeta / f"{ruta.stem}_{marca}.db"
+    numero = 2
+    while destino.exists():  # dos respaldos en el mismo segundo
+        destino = carpeta / f"{ruta.stem}_{marca}_{numero}.db"
+        numero += 1
+
+    origen = obtener_conexion(ruta)
+    copia = sqlite3.connect(destino)
+    origen.backup(copia)  # copia segura aunque la base esté en uso
+    copia.close()
+    origen.close()
+    return destino
+
+
+def reiniciar_datos(ruta=None):
+    """Borra todas las citas, doctores y pacientes. Los usuarios se conservan.
+
+    Antes de borrar guarda un respaldo. Devuelve (ruta del respaldo, filas borradas por tabla).
+    """
+    respaldo = crear_respaldo(ruta)
+    borrados = contar_datos(ruta)
+    with obtener_conexion(ruta) as conexion:  # todo o nada: si algo falla, no se borra nada
+        for tabla in TABLAS_DE_DATOS:
+            conexion.execute(f"DELETE FROM {tabla}")
+        # Los números de ID vuelven a empezar desde 1
+        conexion.execute(
+            "DELETE FROM sqlite_sequence WHERE name IN (?, ?, ?)", TABLAS_DE_DATOS
+        )
+    conexion.close()
+    return respaldo, borrados

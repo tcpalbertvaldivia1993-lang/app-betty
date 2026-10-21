@@ -35,6 +35,7 @@ TEXTOS = {
     "pag_calendario": {"es": "Calendario", "en": "Calendar"},
     "pag_cuenta": {"es": "Mi cuenta", "en": "My account"},
     "pag_usuarios": {"es": "Usuarios", "en": "Users"},
+    "pag_reiniciar": {"es": "Reiniciar datos", "en": "Reset data"},
     "sesion": {"es": "👤 Sesión: **{usuario}** ({rol})", "en": "👤 Signed in: **{usuario}** ({rol})"},
     "boton_cerrar_sesion": {"es": "Cerrar sesión", "en": "Log out"},
 
@@ -256,6 +257,38 @@ TEXTOS = {
     "contrasena_restablecida": {
         "es": "Contraseña de «{usuario}» restablecida.",
         "en": "Password for “{usuario}” has been reset.",
+    },
+
+    # ---------- Reiniciar datos ----------
+    "reiniciar_titulo": {"es": "⚠️ Reiniciar datos", "en": "⚠️ Reset data"},
+    "reiniciar_explicacion": {
+        "es": "Borra todos los doctores, pacientes y citas para empezar de cero. "
+              "Las cuentas de usuario se conservan.",
+        "en": "Deletes all doctors, patients and appointments to start from scratch. "
+              "User accounts are kept.",
+    },
+    "sin_datos_que_borrar": {
+        "es": "No hay doctores, pacientes ni citas: los datos ya están en cero.",
+        "en": "There are no doctors, patients or appointments: the data is already empty.",
+    },
+    "reiniciar_advertencia": {
+        "es": "Esta acción no se puede deshacer desde la app. Antes de borrar, "
+              "se guarda una copia de seguridad en la carpeta respaldos/.",
+        "en": "This cannot be undone from the app. Before deleting, "
+              "a backup copy is saved in the respaldos/ folder.",
+    },
+    "reiniciar_entiendo": {
+        "es": "Entiendo que se borrarán todos los doctores, pacientes y citas.",
+        "en": "I understand that all doctors, patients and appointments will be deleted.",
+    },
+    "palabra_confirmar": {"es": "BORRAR", "en": "DELETE"},
+    "reiniciar_escribe": {"es": "Escribe {palabra} para confirmar", "en": "Type {palabra} to confirm"},
+    "boton_reiniciar": {"es": "Borrar todo y empezar de cero", "en": "Delete everything and start over"},
+    "reinicio_hecho": {
+        "es": "Datos borrados: {doctores} doctores, {pacientes} pacientes y {citas} citas. "
+              "Copia de seguridad guardada en {respaldo}.",
+        "en": "Data deleted: {doctores} doctors, {pacientes} patients and {citas} appointments. "
+              "Backup saved in {respaldo}.",
     },
 
     # ---------- Errores de validación (los lanza database.py) ----------
