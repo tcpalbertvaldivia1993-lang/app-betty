@@ -4,6 +4,10 @@ Aplicación web hecha con **Streamlit** y **SQLite** para gestionar las citas de
 
 ## Funciones
 
+- **Idioma**: español o inglés, con el selector «🌐 Idioma / Language» de la barra lateral
+  (también en la pantalla de inicio de sesión). Se traducen menús, botones, mensajes, nombres
+  de columnas, estados de las citas, roles y formato de fechas. Lo que escribe cada persona
+  (nombres, motivos de consulta) se guarda y se muestra tal cual.
 - **Acceso con usuario y contraseña**: la primera vez que se abre la app pide crear la cuenta
   del administrador (el propietario de la clínica). Después, siempre pide iniciar sesión.
   La contraseña no se guarda tal cual, sino como un hash (scrypt con sal).
@@ -64,5 +68,6 @@ Solo funciona con la base de datos vacía. Para volver a empezar, borra `clinica
 | `app.py` | Entrada: pide usuario y contraseña y arma el menú de páginas |
 | `database.py` | Tablas y funciones para guardar/leer datos y verificar usuarios |
 | `paginas/` | Una página por sección (solo se ven con la sesión iniciada) |
+| `traducciones.py` | Textos de la app en español e inglés |
 | `datos_ejemplo.py` | Llena la base de datos con datos de prueba |
-| `tests/` | Pruebas de `database.py` |
+| `tests/` | Pruebas de `database.py` y de las traducciones |

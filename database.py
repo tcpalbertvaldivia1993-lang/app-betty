@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from traducciones import ErrorValidacion
+
 # Ruta del archivo de la base de datos (junto a este script)
 RUTA_BD = Path(__file__).parent / "clinica.db"
 
@@ -111,18 +113,16 @@ def hay_usuarios(ruta=None):
 
 def _validar_contrasena(contrasena):
     if len(contrasena) < LARGO_MINIMO_CONTRASENA:
-        raise ValueError(
-            f"La contraseña debe tener al menos {LARGO_MINIMO_CONTRASENA} caracteres."
-        )
+        raise ErrorValidacion("err_contrasena_corta", minimo=LARGO_MINIMO_CONTRASENA)
 
 
 def crear_usuario(usuario, contrasena, rol="personal", ruta=None):
     """Crea un usuario con su contraseña protegida. Devuelve su id."""
     usuario = usuario.strip()
     if not usuario:
-        raise ValueError("El usuario es obligatorio.")
+        raise ErrorValidacion("err_usuario_obligatorio")
     if rol not in ROLES:
-        raise ValueError(f"Rol no válido: {rol}")
+        raise ErrorValidacion("err_rol_invalido", rol=rol)
     _validar_contrasena(contrasena)
     sal = secrets.token_hex(16)  # valor aleatorio distinto para cada usuario
     try:
@@ -134,7 +134,7 @@ def crear_usuario(usuario, contrasena, rol="personal", ruta=None):
             nuevo_id = cursor.lastrowid
         conexion.close()
     except sqlite3.IntegrityError:
-        raise ValueError("Ese usuario ya existe.") from None
+        raise ErrorValidacion("err_usuario_existe") from None
     return nuevo_id
 
 
@@ -189,10 +189,10 @@ def restablecer_contrasena(usuario_id, contrasena_nueva, ruta=None):
 def cambiar_contrasena(usuario, contrasena_actual, contrasena_nueva, ruta=None):
     """Cambia la contraseña si la actual es correcta."""
     if not verificar_usuario(usuario, contrasena_actual, ruta):
-        raise ValueError("La contraseña actual no es correcta.")
+        raise ErrorValidacion("err_contrasena_actual")
     _validar_contrasena(contrasena_nueva)
     if contrasena_nueva == contrasena_actual:
-        raise ValueError("La contraseña nueva debe ser distinta de la actual.")
+        raise ErrorValidacion("err_contrasena_igual")
     restablecer_contrasena(obtener_usuario(usuario, ruta)["id"], contrasena_nueva, ruta)
 
 
@@ -210,7 +210,7 @@ def cambiar_activo_usuario(usuario_id, activo, ruta=None):
             ).fetchone()[0]
         conexion.close()
         if fila and fila["rol"] == "administrador" and otros_admins == 0:
-            raise ValueError("Debe quedar al menos un administrador activo.")
+            raise ErrorValidacion("err_ultimo_admin")
 
     with obtener_conexion(ruta) as conexion:
         conexion.execute(
@@ -225,7 +225,7 @@ def agregar_paciente(nombre, apellido, telefono="", email="",
                      fecha_nacimiento=None, notas="", ruta=None):
     """Guarda un paciente nuevo y devuelve su id."""
     if not nombre.strip() or not apellido.strip():
-        raise ValueError("El nombre y el apellido son obligatorios.")
+        raise ErrorValidacion("err_nombre_apellido")
     with obtener_conexion(ruta) as conexion:
         cursor = conexion.execute(
             """INSERT INTO pacientes (nombre, apellido, telefono, email, fecha_nacimiento, notas)
@@ -242,7 +242,7 @@ def actualizar_paciente(paciente_id, nombre, apellido, telefono="", email="",
                         fecha_nacimiento=None, notas="", ruta=None):
     """Modifica los datos de un paciente existente."""
     if not nombre.strip() or not apellido.strip():
-        raise ValueError("El nombre y el apellido son obligatorios.")
+        raise ErrorValidacion("err_nombre_apellido")
     with obtener_conexion(ruta) as conexion:
         conexion.execute(
             """UPDATE pacientes
@@ -286,7 +286,7 @@ def buscar_pacientes(texto, ruta=None):
 def agregar_doctor(nombre, especialidad, telefono="", ruta=None):
     """Guarda un doctor nuevo y devuelve su id."""
     if not nombre.strip() or not especialidad.strip():
-        raise ValueError("El nombre y la especialidad son obligatorios.")
+        raise ErrorValidacion("err_nombre_especialidad")
     with obtener_conexion(ruta) as conexion:
         cursor = conexion.execute(
             "INSERT INTO doctores (nombre, especialidad, telefono) VALUES (?, ?, ?)",
@@ -350,9 +350,9 @@ def hay_choque_horario(doctor_id, fecha, hora_inicio, duracion,
 
 def _validar_cita(doctor_id, fecha, hora_inicio, duracion, excluir_id, ruta):
     if date.fromisoformat(str(fecha)) < date.today():
-        raise ValueError("No se puede agendar una cita en una fecha pasada.")
+        raise ErrorValidacion("err_fecha_pasada")
     if hay_choque_horario(doctor_id, fecha, hora_inicio, duracion, excluir_id, ruta):
-        raise ValueError("El doctor ya tiene una cita en ese horario.")
+        raise ErrorValidacion("err_choque_horario")
 
 
 def agendar_cita(paciente_id, doctor_id, fecha, hora_inicio,
@@ -378,7 +378,7 @@ def reprogramar_cita(cita_id, fecha, hora_inicio, ruta=None):
         ).fetchone()
     conexion.close()
     if cita is None:
-        raise ValueError("La cita no existe.")
+        raise ErrorValidacion("err_cita_no_existe")
 
     _validar_cita(cita["doctor_id"], fecha, hora_inicio, cita["duracion_min"], cita_id, ruta)
     with obtener_conexion(ruta) as conexion:
@@ -392,7 +392,7 @@ def reprogramar_cita(cita_id, fecha, hora_inicio, ruta=None):
 def cambiar_estado_cita(cita_id, estado, ruta=None):
     """Cambia el estado: programada, atendida, cancelada o no_asistio."""
     if estado not in ESTADOS_CITA:
-        raise ValueError(f"Estado no válido: {estado}")
+        raise ErrorValidacion("err_estado_invalido", estado=estado)
     with obtener_conexion(ruta) as conexion:
         conexion.execute("UPDATE citas SET estado = ? WHERE id = ?", (estado, cita_id))
     conexion.close()

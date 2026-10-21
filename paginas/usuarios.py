@@ -3,86 +3,87 @@
 import streamlit as st
 
 import database as bd
+from traducciones import formato_opcion, preparar_tabla, t, t_error
 
-st.title("👥 Usuarios")
+st.title(t("usuarios_titulo"))
 
 # Defensa extra: app.py ya oculta esta página al personal
 yo = bd.obtener_usuario(st.session_state["usuario"])
 if yo["rol"] != "administrador":
-    st.error("Solo el administrador puede gestionar usuarios.")
+    st.error(t("solo_admin"))
     st.stop()
 
-pestana_nuevo, pestana_gestionar = st.tabs(["Nuevo usuario", "Gestionar usuarios"])
+pestana_nuevo, pestana_gestionar = st.tabs([t("tab_nuevo_usuario"), t("tab_gestionar_usuarios")])
 
 with pestana_nuevo:
     with st.form("form_nuevo_usuario", clear_on_submit=True):
-        usuario = st.text_input("Usuario")
+        usuario = st.text_input(t("campo_usuario"))
         rol = st.selectbox(
-            "Rol", bd.ROLES, index=bd.ROLES.index("personal"),
-            help="El personal usa toda la app excepto esta página. El administrador puede gestionar usuarios.",
+            t("campo_rol"), bd.ROLES, index=bd.ROLES.index("personal"),
+            format_func=formato_opcion("rol_"), help=t("ayuda_rol"),
         )
         contrasena = st.text_input(
-            "Contraseña inicial", type="password",
-            help=f"Mínimo {bd.LARGO_MINIMO_CONTRASENA} caracteres. "
-                 "La persona puede cambiarla después en «Mi cuenta».",
+            t("campo_contrasena_inicial"), type="password",
+            help=t("ayuda_contrasena_inicial", minimo=bd.LARGO_MINIMO_CONTRASENA),
         )
-        repetir = st.text_input("Repite la contraseña", type="password")
-        if st.form_submit_button("Crear usuario", type="primary"):
+        repetir = st.text_input(t("campo_repetir_contrasena"), type="password")
+        if st.form_submit_button(t("boton_crear_usuario"), type="primary"):
             if contrasena != repetir:
-                st.error("Las contraseñas no coinciden.")
+                st.error(t("error_no_coinciden"))
             else:
                 try:
                     bd.crear_usuario(usuario, contrasena, rol)
-                    st.success(f"Usuario «{usuario.strip()}» creado como {rol}.")
+                    st.success(t("usuario_creado", usuario=usuario.strip(), rol=t(f"rol_{rol}")))
                 except ValueError as error:
-                    st.error(str(error))
+                    st.error(t_error(error))
 
 with pestana_gestionar:
     usuarios = bd.listar_usuarios()
-    tabla = usuarios.copy()
-    tabla["activo"] = tabla["activo"].map({1: "Sí", 0: "No"})
-    st.dataframe(tabla, hide_index=True, width="stretch")
+    st.dataframe(preparar_tabla(usuarios), hide_index=True, width="stretch")
 
     # No te puedes desactivar ni restablecer a ti mismo aquí (para tu contraseña usa «Mi cuenta»)
     otros = usuarios[usuarios["id"] != yo["id"]]
     if otros.empty:
-        st.info("Todavía no hay otros usuarios.")
+        st.info(t("sin_otros_usuarios"))
     else:
         opciones = {
-            f"{fila.usuario} ({fila.rol}, {'activo' if fila.activo else 'inactivo'})": fila
+            t(
+                "opcion_usuario", usuario=fila.usuario, rol=t(f"rol_{fila.rol}"),
+                estado=t("usuario_activo") if fila.activo else t("usuario_inactivo"),
+            ): fila
             for fila in otros.itertuples()
         }
-        elegido = opciones[st.selectbox("Selecciona un usuario", list(opciones))]
+        elegido = opciones[st.selectbox(t("selecciona_usuario"), list(opciones))]
 
         col_activo, col_contrasena = st.columns(2)
 
         with col_activo:
-            st.subheader("Acceso")
+            st.subheader(t("acceso"))
             if elegido.activo:
-                st.caption("Un usuario desactivado no puede iniciar sesión, y si la tiene abierta se le cierra.")
-                if st.button("Desactivar usuario"):
+                st.caption(t("desactivar_usuario_ayuda"))
+                if st.button(t("boton_desactivar_usuario")):
                     try:
                         bd.cambiar_activo_usuario(int(elegido.id), False)
                         st.rerun()
                     except ValueError as error:
-                        st.error(str(error))
+                        st.error(t_error(error))
             else:
-                if st.button("Reactivar usuario"):
+                if st.button(t("boton_reactivar_usuario")):
                     bd.cambiar_activo_usuario(int(elegido.id), True)
                     st.rerun()
 
         with col_contrasena:
-            st.subheader("Restablecer contraseña")
-            st.caption("Para cuando alguien del personal olvida su contraseña.")
+            st.subheader(t("restablecer_titulo"))
+            st.caption(t("restablecer_ayuda"))
             with st.form("form_restablecer", clear_on_submit=True):
-                nueva = st.text_input("Contraseña nueva", type="password")
-                repetir_nueva = st.text_input("Repite la contraseña nueva", type="password")
-                if st.form_submit_button("Restablecer"):
+                nueva = st.text_input(t("campo_contrasena_nueva"), type="password")
+                repetir_nueva = st.text_input(t("campo_repetir_nueva"), type="password")
+                if st.form_submit_button(t("boton_restablecer")):
                     if nueva != repetir_nueva:
-                        st.error("Las contraseñas no coinciden.")
+                        st.error(t("error_no_coinciden"))
                     else:
                         try:
                             bd.restablecer_contrasena(int(elegido.id), nueva)
-                            st.success(f"Contraseña de «{elegido.usuario}» restablecida.")
+                            st.success(t("contrasena_restablecida", usuario=elegido.usuario))
                         except ValueError as error:
-                            st.error(str(error))
+                            st.error(t_error(error))
