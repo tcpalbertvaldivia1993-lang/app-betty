@@ -127,6 +127,25 @@ def test_usuario_invalido(ruta):
         bd.crear_usuario("dueno", "clave-segura-2", ruta)
 
 
+def test_cambiar_contrasena(ruta):
+    bd.crear_usuario("dueno", "clave-segura", ruta)
+    bd.cambiar_contrasena("dueno", "clave-segura", "clave-nueva-1", ruta)
+    assert bd.verificar_usuario("dueno", "clave-nueva-1", ruta)
+    assert not bd.verificar_usuario("dueno", "clave-segura", ruta)
+
+
+def test_cambiar_contrasena_invalida(ruta):
+    bd.crear_usuario("dueno", "clave-segura", ruta)
+    with pytest.raises(ValueError, match="actual"):
+        bd.cambiar_contrasena("dueno", "equivocada", "clave-nueva-1", ruta)
+    with pytest.raises(ValueError, match="al menos"):
+        bd.cambiar_contrasena("dueno", "clave-segura", "corta", ruta)
+    with pytest.raises(ValueError, match="distinta"):
+        bd.cambiar_contrasena("dueno", "clave-segura", "clave-segura", ruta)
+    # Ningún intento fallido cambió la contraseña
+    assert bd.verificar_usuario("dueno", "clave-segura", ruta)
+
+
 def test_estadisticas(ruta, datos):
     paciente_id, doctor_id = datos
     bd.agendar_cita(paciente_id, doctor_id, MANANA, "09:00", ruta=ruta)

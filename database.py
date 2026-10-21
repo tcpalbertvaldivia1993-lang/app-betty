@@ -96,15 +96,19 @@ def hay_usuarios(ruta=None):
     return cantidad > 0
 
 
+def _validar_contrasena(contrasena):
+    if len(contrasena) < LARGO_MINIMO_CONTRASENA:
+        raise ValueError(
+            f"La contraseña debe tener al menos {LARGO_MINIMO_CONTRASENA} caracteres."
+        )
+
+
 def crear_usuario(usuario, contrasena, ruta=None):
     """Crea un usuario con su contraseña protegida. Devuelve su id."""
     usuario = usuario.strip()
     if not usuario:
         raise ValueError("El usuario es obligatorio.")
-    if len(contrasena) < LARGO_MINIMO_CONTRASENA:
-        raise ValueError(
-            f"La contraseña debe tener al menos {LARGO_MINIMO_CONTRASENA} caracteres."
-        )
+    _validar_contrasena(contrasena)
     sal = secrets.token_hex(16)  # valor aleatorio distinto para cada usuario
     try:
         with obtener_conexion(ruta) as conexion:
@@ -131,6 +135,22 @@ def verificar_usuario(usuario, contrasena, ruta=None):
         return False
     # compare_digest compara sin dar pistas por el tiempo que tarda
     return hmac.compare_digest(_calcular_hash(contrasena, fila["sal"]), fila["hash_contrasena"])
+
+
+def cambiar_contrasena(usuario, contrasena_actual, contrasena_nueva, ruta=None):
+    """Cambia la contraseña si la actual es correcta."""
+    if not verificar_usuario(usuario, contrasena_actual, ruta):
+        raise ValueError("La contraseña actual no es correcta.")
+    _validar_contrasena(contrasena_nueva)
+    if contrasena_nueva == contrasena_actual:
+        raise ValueError("La contraseña nueva debe ser distinta de la actual.")
+    sal = secrets.token_hex(16)  # sal nueva en cada cambio
+    with obtener_conexion(ruta) as conexion:
+        conexion.execute(
+            "UPDATE usuarios SET sal = ?, hash_contrasena = ? WHERE usuario = ?",
+            (sal, _calcular_hash(contrasena_nueva, sal), usuario.strip()),
+        )
+    conexion.close()
 
 
 # ---------- Pacientes ----------
