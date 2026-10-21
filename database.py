@@ -6,6 +6,7 @@ Así se puede probar con pytest sin abrir la interfaz.
 
 import hashlib
 import hmac
+import os
 import secrets
 import sqlite3
 from datetime import date, datetime
@@ -15,8 +16,9 @@ import pandas as pd
 
 from traducciones import ErrorValidacion
 
-# Ruta del archivo de la base de datos (junto a este script)
-RUTA_BD = Path(__file__).parent / "clinica.db"
+# Ruta del archivo de la base de datos. Por defecto, junto a este script.
+# El programa para Windows (lanzador.py) la cambia con la variable de entorno CLINICA_BD.
+RUTA_BD = Path(os.environ.get("CLINICA_BD", Path(__file__).parent / "clinica.db"))
 
 ESTADOS_CITA = ["programada", "atendida", "cancelada", "no_asistio"]
 

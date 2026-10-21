@@ -28,11 +28,20 @@ Aplicación web hecha con **Streamlit** y **SQLite** para gestionar las citas de
   La app no deja agendar dos citas que se solapen con el mismo doctor ni citas en fechas pasadas.
 - **Calendario**: ver citas por día o semana y un gráfico por doctor y estado.
 
+## Instalar en la clínica (Windows)
+
+Para usar la app en una clínica, se construye un programa para Windows (`ClinicaCitas.exe`) que
+no necesita Python. Una PC hace de servidor y las demás PCs y celulares entran por el navegador.
+
+- **Construir el ZIP** (en una PC con Windows y Python 3): ejecutar `construir_windows.bat`.
+  Crea `dist\ClinicaCitas-windows.zip`.
+- **Instalarlo y usarlo en la clínica**: ver [INSTALACION_CLINICA.md](INSTALACION_CLINICA.md).
+
 ## Instalación
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 ## Uso
@@ -81,6 +90,9 @@ Solo funciona con la base de datos vacía. Para volver a empezar, borra `clinica
 | `database.py` | Tablas y funciones para guardar/leer datos y verificar usuarios |
 | `paginas/` | Una página por sección (solo se ven con la sesión iniciada) |
 | `respaldos/` | Copias de seguridad creadas al reiniciar los datos (no se suben a Git) |
+| `lanzador.py` | Punto de entrada de `ClinicaCitas.exe`: arranca el servidor y abre el navegador |
+| `construir_windows.bat` | Construye el `.exe` y el ZIP para Windows |
+| `INSTALACION_CLINICA.md` | Guía de instalación para la clínica (va dentro del ZIP) |
 | `traducciones.py` | Textos de la app en español e inglés |
 | `datos_ejemplo.py` | Llena la base de datos con datos de prueba |
 | `tests/` | Pruebas de `database.py` y de las traducciones |
