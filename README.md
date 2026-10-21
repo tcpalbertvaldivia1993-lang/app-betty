@@ -7,6 +7,7 @@ Aplicación web hecha con **Streamlit** y **SQLite** para gestionar las citas de
 - **Acceso con usuario y contraseña**: la primera vez que se abre la app pide crear la cuenta
   del administrador (el propietario de la clínica). Después, siempre pide iniciar sesión.
   La contraseña no se guarda tal cual, sino como un hash (scrypt con sal).
+- **Mi cuenta**: cambiar la contraseña (pide la contraseña actual).
 - **Inicio**: resumen de las citas de hoy y de los próximos 7 días.
 - **Pacientes**: registrar, buscar y editar pacientes.
 - **Doctores**: registrar doctores y desactivarlos.

@@ -72,6 +72,7 @@ else:
         st.Page("paginas/doctores.py", title="Doctores", icon="🩺"),
         st.Page("paginas/citas.py", title="Citas", icon="📅"),
         st.Page("paginas/calendario.py", title="Calendario", icon="🗓️"),
+        st.Page("paginas/cuenta.py", title="Mi cuenta", icon="🔑"),
     ])
 
 pagina.run()
