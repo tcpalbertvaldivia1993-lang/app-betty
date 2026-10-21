@@ -50,12 +50,14 @@ def dias_laborables(desde, hasta):
         dia += timedelta(days=1)
 
 
-def main():
+def cargar():
+    """Agrega los datos de ejemplo si la base está vacía.
+
+    Devuelve (doctores, pacientes, citas) agregados, o None si ya había datos.
+    """
     bd.crear_tablas()
     if not bd.listar_pacientes().empty or not bd.listar_doctores(solo_activos=False).empty:
-        print("La base de datos ya tiene datos. No se agregó nada.")
-        print("Si quieres empezar de cero, borra clinica.db y vuelve a ejecutar este script.")
-        return
+        return None
 
     random.seed(42)  # siempre los mismos datos
     doctores_ids = [bd.agregar_doctor(*doctor) for doctor in DOCTORES]
@@ -91,7 +93,17 @@ def main():
                     bd.agendar_cita(paciente_id, doctor_id, dia, hora, duracion, motivo)
                 total += 1
 
-    print(f"Listo: {len(doctores_ids)} doctores, {len(pacientes_ids)} pacientes y {total} citas.")
+    return len(doctores_ids), len(pacientes_ids), total
+
+
+def main():
+    cantidades = cargar()
+    if cantidades is None:
+        print("La base de datos ya tiene datos. No se agregó nada.")
+        print("Si quieres empezar de cero, borra clinica.db y vuelve a ejecutar este script.")
+        return
+    doctores, pacientes, citas = cantidades
+    print(f"Listo: {doctores} doctores, {pacientes} pacientes y {citas} citas.")
 
 
 if __name__ == "__main__":

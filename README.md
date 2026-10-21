@@ -21,6 +21,7 @@ Aplicación web hecha con **Streamlit** y **SQLite** para gestionar las citas de
 - **Reiniciar datos** (solo administradores): borra todos los doctores, pacientes y citas para
   empezar de cero; los usuarios se conservan. Pide marcar una casilla y escribir `BORRAR`
   (en inglés, `DELETE`). Antes de borrar guarda una copia en `respaldos/`.
+- **Modo demostración**: para publicarla en internet (ver más abajo).
 - **Inicio**: resumen de las citas de hoy y de los próximos 7 días.
 - **Pacientes**: registrar, buscar y editar pacientes.
 - **Doctores**: registrar doctores, desactivarlos y volver a activarlos.
@@ -36,6 +37,34 @@ no necesita Python. Una PC hace de servidor y las demás PCs y celulares entran 
 - **Construir el ZIP** (en una PC con Windows y Python 3): ejecutar `construir_windows.bat`.
   Crea `dist\ClinicaCitas-windows.zip`.
 - **Instalarlo y usarlo en la clínica**: ver [INSTALACION_CLINICA.md](INSTALACION_CLINICA.md).
+
+## Demostración en internet (Streamlit Community Cloud)
+
+Para que cualquier persona pueda probar la app desde su navegador, sin instalar nada, se publica
+gratis en [Streamlit Community Cloud](https://share.streamlit.io) en **modo demostración**:
+
+1. Entra en https://share.streamlit.io con tu cuenta de GitHub y pulsa **Create app**.
+2. Elige este repositorio, la rama `main` y el archivo `app.py`.
+3. En **Advanced settings**: elige Python 3.12 o más nuevo, y en **Secrets** escribe:
+
+   ```toml
+   MODO_DEMO = "1"
+   ```
+4. Pulsa **Deploy**. La dirección será algo como `https://<nombre>.streamlit.app`.
+
+En modo demostración (`demo.py`):
+- Se entra con el usuario `demo` y la contraseña `demo1234`, que se muestran en la pantalla de acceso.
+  No aparece la pantalla para crear el administrador, así que nadie puede adueñarse de la app.
+- Los datos de ejemplo se cargan solos, también después de **Reiniciar datos**.
+- No están **Mi cuenta** ni **Usuarios**, para que nadie cambie la contraseña de la demostración.
+- Todas las visitas comparten los mismos datos, y se borran cuando el servidor se reinicia.
+  **No sirve para datos reales de pacientes**: para la clínica, usa la instalación en Windows.
+
+Para probar el modo demostración en tu computadora:
+
+```bash
+MODO_DEMO=1 CLINICA_BD=/tmp/demo.db .venv/bin/streamlit run app.py
+```
 
 ## Instalación
 
@@ -95,4 +124,5 @@ Solo funciona con la base de datos vacía. Para volver a empezar, borra `clinica
 | `INSTALACION_CLINICA.md` | Guía de instalación para la clínica (va dentro del ZIP) |
 | `traducciones.py` | Textos de la app en español e inglés |
 | `datos_ejemplo.py` | Llena la base de datos con datos de prueba |
-| `tests/` | Pruebas de `database.py` y de las traducciones |
+| `demo.py` | Modo demostración para publicar la app en internet |
+| `tests/` | Pruebas de `database.py`, de las traducciones y del modo demostración |
