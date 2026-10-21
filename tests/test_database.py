@@ -104,7 +104,7 @@ def test_estado_no_valido(ruta, datos):
 
 def test_crear_y_verificar_usuario(ruta):
     assert not bd.hay_usuarios(ruta)
-    bd.crear_usuario("dueno", "clave-segura", ruta)
+    bd.crear_usuario("dueno", "clave-segura", ruta=ruta)
     assert bd.hay_usuarios(ruta)
     assert bd.verificar_usuario("dueno", "clave-segura", ruta)
     assert not bd.verificar_usuario("dueno", "otra-clave", ruta)
@@ -112,7 +112,7 @@ def test_crear_y_verificar_usuario(ruta):
 
 
 def test_contrasena_no_se_guarda_en_texto(ruta):
-    bd.crear_usuario("dueno", "clave-segura", ruta)
+    bd.crear_usuario("dueno", "clave-segura", ruta=ruta)
     with bd.obtener_conexion(ruta) as conexion:
         fila = conexion.execute("SELECT * FROM usuarios").fetchone()
     conexion.close()
@@ -121,21 +121,21 @@ def test_contrasena_no_se_guarda_en_texto(ruta):
 
 def test_usuario_invalido(ruta):
     with pytest.raises(ValueError, match="al menos"):
-        bd.crear_usuario("dueno", "corta", ruta)
-    bd.crear_usuario("dueno", "clave-segura", ruta)
+        bd.crear_usuario("dueno", "corta", ruta=ruta)
+    bd.crear_usuario("dueno", "clave-segura", ruta=ruta)
     with pytest.raises(ValueError, match="ya existe"):
-        bd.crear_usuario("dueno", "clave-segura-2", ruta)
+        bd.crear_usuario("dueno", "clave-segura-2", ruta=ruta)
 
 
 def test_cambiar_contrasena(ruta):
-    bd.crear_usuario("dueno", "clave-segura", ruta)
+    bd.crear_usuario("dueno", "clave-segura", ruta=ruta)
     bd.cambiar_contrasena("dueno", "clave-segura", "clave-nueva-1", ruta)
     assert bd.verificar_usuario("dueno", "clave-nueva-1", ruta)
     assert not bd.verificar_usuario("dueno", "clave-segura", ruta)
 
 
 def test_cambiar_contrasena_invalida(ruta):
-    bd.crear_usuario("dueno", "clave-segura", ruta)
+    bd.crear_usuario("dueno", "clave-segura", ruta=ruta)
     with pytest.raises(ValueError, match="actual"):
         bd.cambiar_contrasena("dueno", "equivocada", "clave-nueva-1", ruta)
     with pytest.raises(ValueError, match="al menos"):
@@ -144,6 +144,70 @@ def test_cambiar_contrasena_invalida(ruta):
         bd.cambiar_contrasena("dueno", "clave-segura", "clave-segura", ruta)
     # Ningún intento fallido cambió la contraseña
     assert bd.verificar_usuario("dueno", "clave-segura", ruta)
+
+
+def test_roles_de_usuario(ruta):
+    bd.crear_usuario("dueno", "clave-segura", rol="administrador", ruta=ruta)
+    bd.crear_usuario("recepcion", "clave-segura", ruta=ruta)
+    assert bd.obtener_usuario("dueno", ruta)["rol"] == "administrador"
+    assert bd.obtener_usuario("recepcion", ruta)["rol"] == "personal"
+    assert bd.obtener_usuario("nadie", ruta) is None
+    with pytest.raises(ValueError, match="Rol"):
+        bd.crear_usuario("otro", "clave-segura", rol="jefe", ruta=ruta)
+    usuarios = bd.listar_usuarios(ruta)
+    assert list(usuarios["usuario"]) == ["dueno", "recepcion"]
+    assert "hash_contrasena" not in usuarios.columns
+
+
+def test_usuario_desactivado_no_puede_entrar(ruta):
+    bd.crear_usuario("dueno", "clave-segura", rol="administrador", ruta=ruta)
+    personal_id = bd.crear_usuario("recepcion", "clave-segura", ruta=ruta)
+    bd.cambiar_activo_usuario(personal_id, False, ruta)
+    assert not bd.verificar_usuario("recepcion", "clave-segura", ruta)
+    bd.cambiar_activo_usuario(personal_id, True, ruta)
+    assert bd.verificar_usuario("recepcion", "clave-segura", ruta)
+
+
+def test_siempre_queda_un_administrador(ruta):
+    admin_id = bd.crear_usuario("dueno", "clave-segura", rol="administrador", ruta=ruta)
+    with pytest.raises(ValueError, match="administrador"):
+        bd.cambiar_activo_usuario(admin_id, False, ruta)
+    # Con un segundo administrador activo, sí se puede desactivar el primero
+    bd.crear_usuario("socio", "clave-segura", rol="administrador", ruta=ruta)
+    bd.cambiar_activo_usuario(admin_id, False, ruta)
+    assert not bd.obtener_usuario("dueno", ruta)["activo"]
+
+
+def test_restablecer_contrasena(ruta):
+    personal_id = bd.crear_usuario("recepcion", "clave-segura", ruta=ruta)
+    bd.restablecer_contrasena(personal_id, "clave-nueva-1", ruta)
+    assert bd.verificar_usuario("recepcion", "clave-nueva-1", ruta)
+    with pytest.raises(ValueError, match="al menos"):
+        bd.restablecer_contrasena(personal_id, "corta", ruta)
+
+
+def test_migracion_base_antigua(tmp_path):
+    """Una base creada antes de los roles se actualiza y su usuario queda como administrador."""
+    ruta_vieja = tmp_path / "vieja.db"
+    with bd.obtener_conexion(ruta_vieja) as conexion:
+        conexion.execute(
+            """CREATE TABLE usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT,
+               usuario TEXT NOT NULL UNIQUE, sal TEXT NOT NULL,
+               hash_contrasena TEXT NOT NULL, creado_en TEXT DEFAULT CURRENT_TIMESTAMP)"""
+        )
+        sal = "00" * 16
+        conexion.execute(
+            "INSERT INTO usuarios (usuario, sal, hash_contrasena) VALUES (?, ?, ?)",
+            ("dueno", sal, bd._calcular_hash("clave-segura", sal)),
+        )
+    conexion.close()
+
+    bd.crear_tablas(ruta_vieja)
+    bd.crear_tablas(ruta_vieja)  # ejecutarlo dos veces no debe fallar
+    assert bd.obtener_usuario("dueno", ruta_vieja) == {
+        "id": 1, "usuario": "dueno", "rol": "administrador", "activo": 1,
+    }
+    assert bd.verificar_usuario("dueno", "clave-segura", ruta_vieja)
 
 
 def test_estadisticas(ruta, datos):

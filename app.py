@@ -30,7 +30,7 @@ def pantalla_crear_administrador():
                 st.error("Las contraseñas no coinciden.")
             else:
                 try:
-                    bd.crear_usuario(usuario, contrasena)
+                    bd.crear_usuario(usuario, contrasena, rol="administrador")
                     st.session_state["usuario"] = usuario.strip()
                     st.rerun()
                 except ValueError as error:
@@ -51,6 +51,12 @@ def pantalla_login():
                 st.error("Usuario o contraseña incorrectos.")
 
 
+if "usuario" in st.session_state:
+    # Se vuelve a leer en cada recarga: si el administrador desactivó la cuenta, se cierra la sesión
+    datos_usuario = bd.obtener_usuario(st.session_state["usuario"])
+    if datos_usuario is None or not datos_usuario["activo"]:
+        del st.session_state["usuario"]
+
 if "usuario" not in st.session_state:
     # Sin sesión: la única página disponible es la de acceso
     if bd.hay_usuarios():
@@ -61,18 +67,22 @@ if "usuario" not in st.session_state:
         )
 else:
     with st.sidebar:
-        st.write(f"👤 Sesión: **{st.session_state['usuario']}**")
+        st.write(f"👤 Sesión: **{datos_usuario['usuario']}** ({datos_usuario['rol']})")
         if st.button("Cerrar sesión"):
             del st.session_state["usuario"]
             st.rerun()
 
-    pagina = st.navigation([
+    paginas = [
         st.Page("paginas/inicio.py", title="Inicio", icon="🏥", default=True),
         st.Page("paginas/pacientes.py", title="Pacientes", icon="🧑"),
         st.Page("paginas/doctores.py", title="Doctores", icon="🩺"),
         st.Page("paginas/citas.py", title="Citas", icon="📅"),
         st.Page("paginas/calendario.py", title="Calendario", icon="🗓️"),
         st.Page("paginas/cuenta.py", title="Mi cuenta", icon="🔑"),
-    ])
+    ]
+    # Solo el administrador puede gestionar los usuarios del personal
+    if datos_usuario["rol"] == "administrador":
+        paginas.append(st.Page("paginas/usuarios.py", title="Usuarios", icon="👥"))
+    pagina = st.navigation(paginas)
 
 pagina.run()
