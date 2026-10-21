@@ -1,9 +1,10 @@
-"""Página de inicio de la app de citas de la clínica.
+"""Entrada de la app de citas de la clínica.
 
 Ejecutar con:  .venv/bin/streamlit run app.py
-"""
 
-from datetime import date, timedelta
+Antes de mostrar cualquier página pide usuario y contraseña.
+La primera vez que se abre, pide crear la cuenta del administrador (el propietario).
+"""
 
 import streamlit as st
 
@@ -12,37 +13,65 @@ import database as bd
 st.set_page_config(page_title="Clínica - Citas", page_icon="🏥", layout="wide")
 bd.crear_tablas()
 
-st.title("🏥 Citas de la clínica")
-st.caption("Usa el menú de la izquierda para gestionar pacientes, doctores y citas.")
 
-hoy = date.today()
-citas_hoy = bd.citas_por_rango(hoy, hoy)
+def pantalla_crear_administrador():
+    """Se muestra solo la primera vez, cuando todavía no hay ningún usuario."""
+    st.title("🏥 Bienvenido")
+    st.write("Es la primera vez que se abre la app. Crea la cuenta del administrador (propietario de la clínica).")
+    with st.form("form_crear_administrador"):
+        usuario = st.text_input("Usuario")
+        contrasena = st.text_input(
+            "Contraseña", type="password",
+            help=f"Mínimo {bd.LARGO_MINIMO_CONTRASENA} caracteres.",
+        )
+        repetir = st.text_input("Repite la contraseña", type="password")
+        if st.form_submit_button("Crear administrador", type="primary"):
+            if contrasena != repetir:
+                st.error("Las contraseñas no coinciden.")
+            else:
+                try:
+                    bd.crear_usuario(usuario, contrasena)
+                    st.session_state["usuario"] = usuario.strip()
+                    st.rerun()
+                except ValueError as error:
+                    st.error(str(error))
 
-# Métricas del día
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Citas hoy", len(citas_hoy))
-col2.metric("Pendientes", int((citas_hoy["estado"] == "programada").sum()))
-col3.metric("Atendidas", int((citas_hoy["estado"] == "atendida").sum()))
-col4.metric("Canceladas", int((citas_hoy["estado"] == "cancelada").sum()))
 
-st.subheader(f"Agenda de hoy ({hoy:%d/%m/%Y})")
-if citas_hoy.empty:
-    st.info("No hay citas para hoy.")
+def pantalla_login():
+    st.title("🔒 Iniciar sesión")
+    with st.form("form_login"):
+        usuario = st.text_input("Usuario")
+        contrasena = st.text_input("Contraseña", type="password")
+        if st.form_submit_button("Entrar", type="primary"):
+            if bd.verificar_usuario(usuario, contrasena):
+                st.session_state["usuario"] = usuario.strip()
+                st.rerun()
+            else:
+                # No se dice cuál de los dos falló, para no dar pistas
+                st.error("Usuario o contraseña incorrectos.")
+
+
+if "usuario" not in st.session_state:
+    # Sin sesión: la única página disponible es la de acceso
+    if bd.hay_usuarios():
+        pagina = st.navigation([st.Page(pantalla_login, title="Iniciar sesión", icon="🔒")])
+    else:
+        pagina = st.navigation(
+            [st.Page(pantalla_crear_administrador, title="Crear administrador", icon="🔑")]
+        )
 else:
-    st.dataframe(
-        citas_hoy[["hora_inicio", "paciente", "doctor", "motivo", "estado"]],
-        hide_index=True,
-        width="stretch",
-    )
+    with st.sidebar:
+        st.write(f"👤 Sesión: **{st.session_state['usuario']}**")
+        if st.button("Cerrar sesión"):
+            del st.session_state["usuario"]
+            st.rerun()
 
-st.subheader("Próximos 7 días")
-proximas = bd.citas_por_rango(hoy + timedelta(days=1), hoy + timedelta(days=7))
-proximas = proximas[proximas["estado"] == "programada"]
-if proximas.empty:
-    st.info("No hay citas programadas para los próximos días.")
-else:
-    st.dataframe(
-        proximas[["fecha", "hora_inicio", "paciente", "doctor", "motivo"]],
-        hide_index=True,
-        width="stretch",
-    )
+    pagina = st.navigation([
+        st.Page("paginas/inicio.py", title="Inicio", icon="🏥", default=True),
+        st.Page("paginas/pacientes.py", title="Pacientes", icon="🧑"),
+        st.Page("paginas/doctores.py", title="Doctores", icon="🩺"),
+        st.Page("paginas/citas.py", title="Citas", icon="📅"),
+        st.Page("paginas/calendario.py", title="Calendario", icon="🗓️"),
+    ])
+
+pagina.run()

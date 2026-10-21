@@ -4,6 +4,9 @@ Este módulo no usa Streamlit: solo guarda y lee datos.
 Así se puede probar con pytest sin abrir la interfaz.
 """
 
+import hashlib
+import hmac
+import secrets
 import sqlite3
 from datetime import date
 from pathlib import Path
@@ -60,9 +63,74 @@ def crear_tablas(ruta=None):
                     CHECK (estado IN ('programada', 'atendida', 'cancelada', 'no_asistio')),
                 creado_en TEXT DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario TEXT NOT NULL UNIQUE,
+                sal TEXT NOT NULL,
+                hash_contrasena TEXT NOT NULL,
+                creado_en TEXT DEFAULT CURRENT_TIMESTAMP
+            );
             """
         )
     conexion.close()
+
+
+# ---------- Usuarios (acceso a la app) ----------
+
+LARGO_MINIMO_CONTRASENA = 8
+
+
+def _calcular_hash(contrasena, sal):
+    """Convierte la contraseña en un hash irreversible (no se guarda la contraseña real)."""
+    return hashlib.scrypt(
+        contrasena.encode("utf-8"), salt=bytes.fromhex(sal), n=2**14, r=8, p=1
+    ).hex()
+
+
+def hay_usuarios(ruta=None):
+    """True si ya se creó al menos un usuario."""
+    with obtener_conexion(ruta) as conexion:
+        cantidad = conexion.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0]
+    conexion.close()
+    return cantidad > 0
+
+
+def crear_usuario(usuario, contrasena, ruta=None):
+    """Crea un usuario con su contraseña protegida. Devuelve su id."""
+    usuario = usuario.strip()
+    if not usuario:
+        raise ValueError("El usuario es obligatorio.")
+    if len(contrasena) < LARGO_MINIMO_CONTRASENA:
+        raise ValueError(
+            f"La contraseña debe tener al menos {LARGO_MINIMO_CONTRASENA} caracteres."
+        )
+    sal = secrets.token_hex(16)  # valor aleatorio distinto para cada usuario
+    try:
+        with obtener_conexion(ruta) as conexion:
+            cursor = conexion.execute(
+                "INSERT INTO usuarios (usuario, sal, hash_contrasena) VALUES (?, ?, ?)",
+                (usuario, sal, _calcular_hash(contrasena, sal)),
+            )
+            nuevo_id = cursor.lastrowid
+        conexion.close()
+    except sqlite3.IntegrityError:
+        raise ValueError("Ese usuario ya existe.") from None
+    return nuevo_id
+
+
+def verificar_usuario(usuario, contrasena, ruta=None):
+    """True si el usuario existe y la contraseña es correcta."""
+    with obtener_conexion(ruta) as conexion:
+        fila = conexion.execute(
+            "SELECT sal, hash_contrasena FROM usuarios WHERE usuario = ?",
+            (usuario.strip(),),
+        ).fetchone()
+    conexion.close()
+    if fila is None:
+        return False
+    # compare_digest compara sin dar pistas por el tiempo que tarda
+    return hmac.compare_digest(_calcular_hash(contrasena, fila["sal"]), fila["hash_contrasena"])
 
 
 # ---------- Pacientes ----------

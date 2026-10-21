@@ -6,8 +6,6 @@ import streamlit as st
 
 import database as bd
 
-st.set_page_config(page_title="Calendario", page_icon="🗓️", layout="wide")
-bd.crear_tablas()
 st.title("🗓️ Calendario y reportes")
 
 col1, col2, col3 = st.columns(3)
