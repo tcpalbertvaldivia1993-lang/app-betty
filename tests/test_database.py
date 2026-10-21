@@ -252,3 +252,18 @@ def test_estadisticas(ruta, datos):
     tabla = bd.estadisticas(MANANA, MANANA, ruta)
     totales = dict(zip(tabla["estado"], tabla["total"]))
     assert totales == {"atendida": 1, "programada": 1}
+
+
+def test_ruta_configurable_con_variable_de_entorno(tmp_path):
+    """El programa para Windows guarda la base donde indica CLINICA_BD."""
+    import os
+    import subprocess
+
+    ruta = tmp_path / "otra" / "clinica.db"
+    resultado = subprocess.run(
+        [sys.executable, "-c", "import database; print(database.RUTA_BD)"],
+        cwd=Path(__file__).parent.parent,
+        env={**os.environ, "CLINICA_BD": str(ruta)},
+        capture_output=True, text=True, check=True,
+    )
+    assert resultado.stdout.strip() == str(ruta)

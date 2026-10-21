@@ -3,3 +3,9 @@ __pycache__/
 .pytest_cache/
 clinica.db
 respaldos/
+datos/
+# Construcción del programa para Windows
+build/
+dist/
+.venv-win/
+*.spec

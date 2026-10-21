@@ -35,7 +35,7 @@ def test_claves_usadas_en_el_codigo_existen():
     patron = re.compile(r"""(?:\bt|ErrorValidacion)\(\s*["'](\w+)["']""")
     usadas = set()
     for archivo in archivos:
-        usadas |= set(patron.findall(archivo.read_text()))
+        usadas |= set(patron.findall(archivo.read_text(encoding="utf-8")))
     assert usadas, "No se encontró ninguna clave: revisa el patrón"
     faltantes = usadas - set(TEXTOS)
     assert not faltantes, f"Claves sin traducción: {faltantes}"

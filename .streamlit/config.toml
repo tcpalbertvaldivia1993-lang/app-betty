@@ -1,0 +1,8 @@
+# Configuración de Streamlit para esta app (se lee al ejecutar desde la carpeta del proyecto)
+
+[browser]
+# No enviar estadísticas de uso a Streamlit: la app maneja datos de pacientes
+gatherUsageStats = false
+
+[server]
+headless = true
