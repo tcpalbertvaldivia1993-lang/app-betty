@@ -27,6 +27,16 @@ python3 -m venv .venv
 Se abre en el navegador en http://localhost:8501. Los datos se guardan en `clinica.db`
 (se crea solo la primera vez).
 
+### Datos de ejemplo
+
+Para probar la app con datos (4 doctores, 12 pacientes y citas de las últimas 2 semanas y las próximas 2):
+
+```bash
+.venv/bin/python datos_ejemplo.py
+```
+
+Solo funciona con la base de datos vacía. Para volver a empezar, borra `clinica.db`.
+
 ## Pruebas
 
 ```bash
