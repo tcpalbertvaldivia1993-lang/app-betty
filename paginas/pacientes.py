@@ -6,8 +6,6 @@ import streamlit as st
 
 import database as bd
 
-st.set_page_config(page_title="Pacientes", page_icon="🧑", layout="wide")
-bd.crear_tablas()
 st.title("🧑 Pacientes")
 
 pestana_nuevo, pestana_buscar = st.tabs(["Nuevo paciente", "Buscar y editar"])

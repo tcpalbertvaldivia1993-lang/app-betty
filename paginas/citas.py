@@ -6,8 +6,6 @@ import streamlit as st
 
 import database as bd
 
-st.set_page_config(page_title="Citas", page_icon="📅", layout="wide")
-bd.crear_tablas()
 st.title("📅 Citas")
 
 # Horarios disponibles: cada 30 minutos de 08:00 a 17:30

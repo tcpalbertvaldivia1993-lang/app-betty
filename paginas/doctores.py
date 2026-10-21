@@ -4,8 +4,6 @@ import streamlit as st
 
 import database as bd
 
-st.set_page_config(page_title="Doctores", page_icon="🩺", layout="wide")
-bd.crear_tablas()
 st.title("🩺 Doctores")
 
 with st.form("form_nuevo_doctor", clear_on_submit=True):

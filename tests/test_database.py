@@ -102,6 +102,31 @@ def test_estado_no_valido(ruta, datos):
         bd.cambiar_estado_cita(cita_id, "perdida", ruta)
 
 
+def test_crear_y_verificar_usuario(ruta):
+    assert not bd.hay_usuarios(ruta)
+    bd.crear_usuario("dueno", "clave-segura", ruta)
+    assert bd.hay_usuarios(ruta)
+    assert bd.verificar_usuario("dueno", "clave-segura", ruta)
+    assert not bd.verificar_usuario("dueno", "otra-clave", ruta)
+    assert not bd.verificar_usuario("nadie", "clave-segura", ruta)
+
+
+def test_contrasena_no_se_guarda_en_texto(ruta):
+    bd.crear_usuario("dueno", "clave-segura", ruta)
+    with bd.obtener_conexion(ruta) as conexion:
+        fila = conexion.execute("SELECT * FROM usuarios").fetchone()
+    conexion.close()
+    assert "clave-segura" not in dict(fila).values()
+
+
+def test_usuario_invalido(ruta):
+    with pytest.raises(ValueError, match="al menos"):
+        bd.crear_usuario("dueno", "corta", ruta)
+    bd.crear_usuario("dueno", "clave-segura", ruta)
+    with pytest.raises(ValueError, match="ya existe"):
+        bd.crear_usuario("dueno", "clave-segura-2", ruta)
+
+
 def test_estadisticas(ruta, datos):
     paciente_id, doctor_id = datos
     bd.agendar_cita(paciente_id, doctor_id, MANANA, "09:00", ruta=ruta)
