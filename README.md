@@ -8,6 +8,12 @@ Aplicación web hecha con **Streamlit** y **SQLite** para gestionar las citas de
   del administrador (el propietario de la clínica). Después, siempre pide iniciar sesión.
   La contraseña no se guarda tal cual, sino como un hash (scrypt con sal).
 - **Mi cuenta**: cambiar la contraseña (pide la contraseña actual).
+- **Usuarios** (solo administradores): crear cuentas para el personal, desactivarlas o
+  reactivarlas y restablecer su contraseña. Hay dos roles:
+  - `administrador`: puede hacer todo, incluida la gestión de usuarios.
+  - `personal`: usa toda la app excepto la página Usuarios.
+
+  Siempre debe quedar al menos un administrador activo.
 - **Inicio**: resumen de las citas de hoy y de los próximos 7 días.
 - **Pacientes**: registrar, buscar y editar pacientes.
 - **Doctores**: registrar doctores y desactivarlos.
@@ -31,8 +37,9 @@ python3 -m venv .venv
 Se abre en el navegador en http://localhost:8501. Los datos se guardan en `clinica.db`
 (se crea solo la primera vez).
 
-Si olvidas la contraseña del administrador, borra la fila de la tabla `usuarios` en `clinica.db`
-y al abrir la app te pedirá crear el administrador otra vez.
+Si alguien del personal olvida su contraseña, el administrador la restablece en **Usuarios**.
+Si la olvida el único administrador, hay que borrar todas las filas de la tabla `usuarios`
+en `clinica.db` (también las del personal); al abrir la app pedirá crear el administrador otra vez.
 
 ### Datos de ejemplo
 

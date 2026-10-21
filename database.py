@@ -69,16 +69,29 @@ def crear_tablas(ruta=None):
                 usuario TEXT NOT NULL UNIQUE,
                 sal TEXT NOT NULL,
                 hash_contrasena TEXT NOT NULL,
+                rol TEXT NOT NULL DEFAULT 'personal'
+                    CHECK (rol IN ('administrador', 'personal')),
+                activo INTEGER NOT NULL DEFAULT 1,
                 creado_en TEXT DEFAULT CURRENT_TIMESTAMP
             );
             """
         )
+        # Migración: las bases creadas antes de existir los roles no tienen estas columnas.
+        # En ellas el único usuario era el propietario, por eso queda como administrador.
+        columnas = {fila["name"] for fila in conexion.execute("PRAGMA table_info(usuarios)")}
+        if "rol" not in columnas:
+            conexion.execute(
+                "ALTER TABLE usuarios ADD COLUMN rol TEXT NOT NULL DEFAULT 'administrador'"
+            )
+        if "activo" not in columnas:
+            conexion.execute("ALTER TABLE usuarios ADD COLUMN activo INTEGER NOT NULL DEFAULT 1")
     conexion.close()
 
 
 # ---------- Usuarios (acceso a la app) ----------
 
 LARGO_MINIMO_CONTRASENA = 8
+ROLES = ["administrador", "personal"]
 
 
 def _calcular_hash(contrasena, sal):
@@ -103,18 +116,20 @@ def _validar_contrasena(contrasena):
         )
 
 
-def crear_usuario(usuario, contrasena, ruta=None):
+def crear_usuario(usuario, contrasena, rol="personal", ruta=None):
     """Crea un usuario con su contraseña protegida. Devuelve su id."""
     usuario = usuario.strip()
     if not usuario:
         raise ValueError("El usuario es obligatorio.")
+    if rol not in ROLES:
+        raise ValueError(f"Rol no válido: {rol}")
     _validar_contrasena(contrasena)
     sal = secrets.token_hex(16)  # valor aleatorio distinto para cada usuario
     try:
         with obtener_conexion(ruta) as conexion:
             cursor = conexion.execute(
-                "INSERT INTO usuarios (usuario, sal, hash_contrasena) VALUES (?, ?, ?)",
-                (usuario, sal, _calcular_hash(contrasena, sal)),
+                "INSERT INTO usuarios (usuario, sal, hash_contrasena, rol) VALUES (?, ?, ?, ?)",
+                (usuario, sal, _calcular_hash(contrasena, sal), rol),
             )
             nuevo_id = cursor.lastrowid
         conexion.close()
@@ -123,11 +138,33 @@ def crear_usuario(usuario, contrasena, ruta=None):
     return nuevo_id
 
 
-def verificar_usuario(usuario, contrasena, ruta=None):
-    """True si el usuario existe y la contraseña es correcta."""
+def obtener_usuario(usuario, ruta=None):
+    """Devuelve los datos del usuario (sin la contraseña) o None si no existe."""
     with obtener_conexion(ruta) as conexion:
         fila = conexion.execute(
-            "SELECT sal, hash_contrasena FROM usuarios WHERE usuario = ?",
+            "SELECT id, usuario, rol, activo FROM usuarios WHERE usuario = ?",
+            (usuario.strip(),),
+        ).fetchone()
+    conexion.close()
+    return dict(fila) if fila else None
+
+
+def listar_usuarios(ruta=None):
+    """Devuelve todos los usuarios como DataFrame (sin datos de contraseña)."""
+    with obtener_conexion(ruta) as conexion:
+        tabla = pd.read_sql_query(
+            "SELECT id, usuario, rol, activo, creado_en FROM usuarios ORDER BY usuario",
+            conexion,
+        )
+    conexion.close()
+    return tabla
+
+
+def verificar_usuario(usuario, contrasena, ruta=None):
+    """True si el usuario existe, está activo y la contraseña es correcta."""
+    with obtener_conexion(ruta) as conexion:
+        fila = conexion.execute(
+            "SELECT sal, hash_contrasena FROM usuarios WHERE usuario = ? AND activo = 1",
             (usuario.strip(),),
         ).fetchone()
     conexion.close()
@@ -137,6 +174,18 @@ def verificar_usuario(usuario, contrasena, ruta=None):
     return hmac.compare_digest(_calcular_hash(contrasena, fila["sal"]), fila["hash_contrasena"])
 
 
+def restablecer_contrasena(usuario_id, contrasena_nueva, ruta=None):
+    """Pone una contraseña nueva sin pedir la anterior (lo usa el administrador)."""
+    _validar_contrasena(contrasena_nueva)
+    sal = secrets.token_hex(16)  # sal nueva en cada cambio
+    with obtener_conexion(ruta) as conexion:
+        conexion.execute(
+            "UPDATE usuarios SET sal = ?, hash_contrasena = ? WHERE id = ?",
+            (sal, _calcular_hash(contrasena_nueva, sal), usuario_id),
+        )
+    conexion.close()
+
+
 def cambiar_contrasena(usuario, contrasena_actual, contrasena_nueva, ruta=None):
     """Cambia la contraseña si la actual es correcta."""
     if not verificar_usuario(usuario, contrasena_actual, ruta):
@@ -144,11 +193,28 @@ def cambiar_contrasena(usuario, contrasena_actual, contrasena_nueva, ruta=None):
     _validar_contrasena(contrasena_nueva)
     if contrasena_nueva == contrasena_actual:
         raise ValueError("La contraseña nueva debe ser distinta de la actual.")
-    sal = secrets.token_hex(16)  # sal nueva en cada cambio
+    restablecer_contrasena(obtener_usuario(usuario, ruta)["id"], contrasena_nueva, ruta)
+
+
+def cambiar_activo_usuario(usuario_id, activo, ruta=None):
+    """Activa o desactiva un usuario. Siempre debe quedar al menos un administrador activo."""
+    if not activo:
+        with obtener_conexion(ruta) as conexion:
+            fila = conexion.execute(
+                "SELECT rol FROM usuarios WHERE id = ?", (usuario_id,)
+            ).fetchone()
+            otros_admins = conexion.execute(
+                """SELECT COUNT(*) FROM usuarios
+                   WHERE rol = 'administrador' AND activo = 1 AND id != ?""",
+                (usuario_id,),
+            ).fetchone()[0]
+        conexion.close()
+        if fila and fila["rol"] == "administrador" and otros_admins == 0:
+            raise ValueError("Debe quedar al menos un administrador activo.")
+
     with obtener_conexion(ruta) as conexion:
         conexion.execute(
-            "UPDATE usuarios SET sal = ?, hash_contrasena = ? WHERE usuario = ?",
-            (sal, _calcular_hash(contrasena_nueva, sal), usuario.strip()),
+            "UPDATE usuarios SET activo = ? WHERE id = ?", (1 if activo else 0, usuario_id)
         )
     conexion.close()
 
