@@ -24,8 +24,25 @@ import database as bd
 import datos_ejemplo
 from traducciones import t, t_error
 
+
+
+def _secreto(nombre):
+    """Lee un valor de las variables de entorno o, si no está, de los Secrets de Streamlit.
+
+    Streamlit Community Cloud copia los Secrets a variables de entorno solo al arrancar el
+    servidor; st.secrets siempre tiene los valores guardados.
+    """
+    if os.environ.get(nombre):
+        return os.environ[nombre]
+    try:
+        return st.secrets.get(nombre)
+    except Exception:  # no hay archivo de Secrets (p. ej. en la computadora o en el .exe)
+        return None
+
+
+bd.URL_POSTGRES = bd.URL_POSTGRES or _secreto("DATABASE_URL")
 ACTIVO = bd.usa_postgres()
-CODIGO_INVITACION = os.environ.get("CODIGO_INVITACION", "")
+CODIGO_INVITACION = _secreto("CODIGO_INVITACION") or ""
 
 
 @st.cache_resource
