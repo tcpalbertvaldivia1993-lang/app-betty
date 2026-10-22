@@ -9,3 +9,6 @@ build/
 dist/
 .venv-win/
 *.spec
+# Copias de la nube (tienen datos de pacientes) y la dirección de Neon
+respaldos_nube/
+.streamlit/secrets.toml
