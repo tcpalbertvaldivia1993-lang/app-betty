@@ -286,13 +286,10 @@ TEXTOS = {
     "boton_reiniciar": {"es": "Borrar todo y empezar de cero", "en": "Delete everything and start over"},
     # Modo demostración (demo.py)
     "demo_aviso": {
-        "es": "🧪 Demostración: los datos son de ejemplo y los comparten todas las visitas. "
-              "No escribas datos reales.",
-        "en": "🧪 Demo: the data is sample data shared by all visitors. Don't enter real data.",
-    },
-    "demo_acceso": {
-        "es": "🧪 Esto es una demostración. Entra con el usuario **{usuario}** y la contraseña **{contrasena}**.",
-        "en": "🧪 This is a demo. Sign in with username **{usuario}** and password **{contrasena}**.",
+        "es": "🧪 Demostración: tus datos son privados y temporales. Se borran tras {horas} horas "
+              "sin uso. Guarda la dirección de esta página para volver. No escribas datos reales.",
+        "en": "🧪 Demo: your data is private and temporary. It is deleted after {horas} hours "
+              "without use. Bookmark this page's address to come back. Don't enter real data.",
     },
     "reinicio_hecho": {
         "es": "Datos borrados: {doctores} doctores, {pacientes} pacientes y {citas} citas. "

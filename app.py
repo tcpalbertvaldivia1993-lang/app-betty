@@ -5,7 +5,7 @@ Ejecutar con:  .venv/bin/streamlit run app.py
 Antes de mostrar cualquier página pide usuario y contraseña.
 La primera vez que se abre, pide crear la cuenta del administrador (el propietario).
 El idioma (español o inglés) se elige en la barra lateral.
-Con MODO_DEMO=1 funciona como demostración pública (ver demo.py).
+Con MODO_DEMO=1 funciona como demostración pública: cada visita tiene su propia base (ver demo.py).
 """
 
 import streamlit as st
@@ -15,15 +15,16 @@ import demo
 from traducciones import IDIOMAS, t, t_error
 
 st.set_page_config(page_title=t("titulo_pestana"), page_icon="🏥", layout="wide")
-bd.crear_tablas()
 if demo.ACTIVO:
-    demo.preparar()
+    demo.preparar_visita()
+else:
+    bd.crear_tablas()
 
 # Selector de idioma: se muestra siempre, también antes de iniciar sesión.
 # Con key="idioma" la elección queda guardada en st.session_state["idioma"].
 st.sidebar.selectbox("🌐 Idioma / Language", list(IDIOMAS), format_func=IDIOMAS.get, key="idioma")
 if demo.ACTIVO:
-    st.sidebar.warning(t("demo_aviso"))
+    st.sidebar.warning(t("demo_aviso", horas=demo.HORAS_SIN_USO))
 
 
 def pantalla_crear_administrador():
@@ -51,8 +52,6 @@ def pantalla_crear_administrador():
 
 def pantalla_login():
     st.title(t("login_titulo"))
-    if demo.ACTIVO:
-        st.info(t("demo_acceso", usuario=demo.USUARIO, contrasena=demo.CONTRASENA))
     with st.form("form_login"):
         usuario = st.text_input(t("campo_usuario"))
         contrasena = st.text_input(t("campo_contrasena"), type="password")
@@ -92,14 +91,11 @@ else:
         st.Page("paginas/doctores.py", title=t("pag_doctores"), icon="🩺"),
         st.Page("paginas/citas.py", title=t("pag_citas"), icon="📅"),
         st.Page("paginas/calendario.py", title=t("pag_calendario"), icon="🗓️"),
+        st.Page("paginas/cuenta.py", title=t("pag_cuenta"), icon="🔑"),
     ]
-    # En la demostración no se puede cambiar la contraseña ni gestionar usuarios (ver demo.py)
-    if not demo.ACTIVO:
-        paginas.append(st.Page("paginas/cuenta.py", title=t("pag_cuenta"), icon="🔑"))
     # Solo el administrador puede gestionar los usuarios del personal
     if datos_usuario["rol"] == "administrador":
-        if not demo.ACTIVO:
-            paginas.append(st.Page("paginas/usuarios.py", title=t("pag_usuarios"), icon="👥"))
+        paginas.append(st.Page("paginas/usuarios.py", title=t("pag_usuarios"), icon="👥"))
         paginas.append(st.Page("paginas/reiniciar.py", title=t("pag_reiniciar"), icon="⚠️"))
     pagina = st.navigation(paginas)
 
