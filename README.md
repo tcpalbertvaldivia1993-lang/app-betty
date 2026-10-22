@@ -74,6 +74,9 @@ en el esquema `clinica_N_respaldo` (solo la última).
 3. Para cambiar el código de invitación, cámbialo en los Secrets. Las clínicas ya creadas no se ven
    afectadas. Sin `CODIGO_INVITACION` no se pueden crear clínicas nuevas (la demostración sigue funcionando).
 
+**Ver los datos en Neon**: en Neon → SQL Editor, [`sql/resumen_clinicas.sql`](sql/resumen_clinicas.sql)
+muestra cuántos pacientes, doctores, citas y usuarios tiene cada clínica (solo lee, no cambia nada).
+
 **Para la clínica**: la [guía de uso](GUIA_USO_CLINICA.md) explica cómo crear la clínica, entrar,
 dar acceso al personal y resolver problemas frecuentes. Se puede mandar tal cual.
 
@@ -150,6 +153,7 @@ CLINICA_PG_PRUEBAS=postgresql://.../clinica_pruebas .venv/bin/python -m pytest
 | `respaldos/` | Copias de seguridad creadas al reiniciar los datos (no se suben a Git) |
 | `lanzador.py` | Punto de entrada de `ClinicaCitas.exe`: arranca el servidor y abre el navegador |
 | `construir_windows.bat` | Construye el `.exe` y el ZIP para Windows |
+| `sql/resumen_clinicas.sql` | Consulta para Neon: resumen de los datos de cada clínica |
 | `GUIA_USO_CLINICA.md` | Guía de uso de la app en línea para la clínica |
 | `INSTALACION_CLINICA.md` | Guía de instalación para la clínica (va dentro del ZIP) |
 | `traducciones.py` | Textos de la app en español e inglés |
