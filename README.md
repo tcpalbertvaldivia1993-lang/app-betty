@@ -83,6 +83,42 @@ dar acceso al personal y resolver problemas frecuentes. Se puede mandar tal cual
 **Datos reales de salud**: guardar datos de pacientes en internet exige cumplir las leyes de
 protección de datos de cada país. Usa contraseñas fuertes y una cuenta por persona.
 
+### Copias de seguridad de la nube
+
+Neon permite volver atrás solo unas horas en el plan gratis, así que conviene guardar copias
+propias, por ejemplo una vez por semana. Desde la carpeta del proyecto, en la terminal de Ubuntu (WSL):
+
+```bash
+.venv/bin/python respaldar_nube.py
+```
+
+- Guarda **cada clínica real en un archivo SQLite** con el formato de la app, en una carpeta con
+  la fecha: `respaldos_nube/2026-10-22_18-30-00/clinica_3.db` (más `indice.json`, que dice qué
+  clínica hay en cada archivo). Con `--incluir-demos` copia también las demostraciones.
+- Pide la dirección de Neon sin mostrarla al escribirla. Para no tener que pegarla cada vez,
+  ponla en `.streamlit/secrets.toml` (`DATABASE_URL = "postgresql://..."`); ese archivo no se sube a Git.
+- `respaldos_nube/` no se sube a Git: las copias tienen datos de pacientes. Guárdalas en un lugar
+  protegido y conserva varias, no solo la última.
+
+**Comprobar una copia**: ábrela con la app en tu computadora y entra con los usuarios de esa
+clínica (usa una copia del archivo, porque la app puede escribir en él):
+
+```bash
+cp respaldos_nube/2026-10-22_18-30-00/clinica_3.db /tmp/prueba.db
+CLINICA_BD=/tmp/prueba.db .venv/bin/streamlit run app.py
+```
+
+**Restaurar** una clínica en la nube desde su copia:
+
+```bash
+.venv/bin/python restaurar_nube.py respaldos_nube/2026-10-22_18-30-00/clinica_3.db
+```
+
+Muestra cuántos datos hay en la copia y en la nube y pide escribir `RESTAURAR`. Los pacientes,
+doctores, citas y usuarios (con sus contraseñas) vuelven a ser los de la copia; lo que había se
+guarda antes en el esquema `clinica_3_antes_de_restaurar`. Si la clínica ya no existe, se crea de
+nuevo. Todo pasa en una transacción: si algo falla, no cambia nada.
+
 ### Probarla en tu computadora
 
 Con cualquier PostgreSQL (por ejemplo, una rama de pruebas en Neon):
@@ -153,6 +189,8 @@ CLINICA_PG_PRUEBAS=postgresql://.../clinica_pruebas .venv/bin/python -m pytest
 | `respaldos/` | Copias de seguridad creadas al reiniciar los datos (no se suben a Git) |
 | `lanzador.py` | Punto de entrada de `ClinicaCitas.exe`: arranca el servidor y abre el navegador |
 | `construir_windows.bat` | Construye el `.exe` y el ZIP para Windows |
+| `respaldar_nube.py` | Copia de seguridad de las clínicas de la nube (un SQLite por clínica) |
+| `restaurar_nube.py` | Restaura una clínica en la nube desde su copia |
 | `sql/resumen_clinicas.sql` | Consulta para Neon: resumen de los datos de cada clínica |
 | `GUIA_USO_CLINICA.md` | Guía de uso de la app en línea para la clínica |
 | `INSTALACION_CLINICA.md` | Guía de instalación para la clínica (va dentro del ZIP) |
