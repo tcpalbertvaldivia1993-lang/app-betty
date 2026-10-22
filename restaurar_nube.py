@@ -20,7 +20,9 @@ import sys
 from pathlib import Path
 
 import database as bd
-from respaldar_nube import TABLAS, conectar, obtener_url_nube
+from respaldar_nube import (
+    MENSAJE_SIN_CONEXION, TABLAS, conectar, error_de_conexion, obtener_url_nube,
+)
 
 PALABRA_CONFIRMAR = "RESTAURAR"
 
@@ -149,6 +151,10 @@ def main():
         ahora = estado_actual(url, info)
     except ErrorRestaurar as error:
         sys.exit(f"Error: {error}")
+    except Exception as error:
+        if error_de_conexion(error):
+            sys.exit(MENSAJE_SIN_CONEXION.format(error=error))
+        raise
 
     print(f"Clínica: {info['nombre']} ({info['esquema']}), copia del {info['fecha_respaldo']}")
     print("  En la copia:", ", ".join(f"{len(datos[t])} {t}" for t in TABLAS))
