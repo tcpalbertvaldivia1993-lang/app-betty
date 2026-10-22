@@ -206,3 +206,13 @@ def test_sin_nube_funciona_como_antes(tmp_path, monkeypatch):
     _enviar(app, "Crear administrador")
     assert _con_sesion(app)
     assert bd.verificar_usuario("dueno", "secreta123")
+
+
+def test_lee_los_secrets_de_streamlit(monkeypatch):
+    """En Streamlit Community Cloud los valores pueden estar solo en st.secrets."""
+    monkeypatch.delenv("CODIGO_INVITACION", raising=False)
+    monkeypatch.setattr(nube.st, "secrets", {"CODIGO_INVITACION": "desde-secrets"})
+    assert nube._secreto("CODIGO_INVITACION") == "desde-secrets"
+    monkeypatch.setenv("CODIGO_INVITACION", "desde-entorno")
+    assert nube._secreto("CODIGO_INVITACION") == "desde-entorno"
+    assert nube._secreto("NO_EXISTE") is None
