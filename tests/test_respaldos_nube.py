@@ -168,9 +168,8 @@ def test_direccion_de_neon(monkeypatch, tmp_path):
 def test_si_no_conecta_no_crea_carpeta(tmp_path):
     """Con una dirección equivocada no queda ninguna carpeta vacía."""
     url_mala = "postgresql://nadie@127.0.0.1:1/no_existe?connect_timeout=2"
-    with pytest.raises(Exception) as error:
+    with pytest.raises(respaldar_nube.ErrorConexion, match="No se pudo conectar"):
         respaldar_nube.respaldar(url_mala, tmp_path)
-    assert respaldar_nube.error_de_conexion(error.value)
     assert list(tmp_path.iterdir()) == []
 
 
@@ -206,3 +205,42 @@ def test_copia_automatica_sin_direccion(monkeypatch, tmp_path):
     with pytest.raises(SystemExit, match="secrets.toml"):
         respaldar_nube.main()
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("url, aviso", [
+    ("", "Falta la dirección"),
+    ("https://neon.tech", "debe empezar por postgresql://"),
+    ("postgresql://a:CLAVE@h/db?x=1postgresql://a:CLAVE@h/db?x=1", "más de una vez"),
+    ("postgresql://a:CLAVE@h/db ?x=1", "espacios"),
+])
+def test_revisar_url_avisa_de_errores_al_pegar(url, aviso):
+    mensaje = respaldar_nube.revisar_url(url)
+    assert aviso in mensaje
+    assert "CLAVE" not in mensaje
+
+
+def test_revisar_url_acepta_una_direccion_correcta():
+    url = "postgresql://usuario:clave@ep-algo.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+    assert respaldar_nube.revisar_url(url) is None
+
+
+def test_formato_invalido_no_muestra_la_direccion():
+    """El caso real: la dirección pegada dos veces daba un error técnico largo."""
+    url = "postgresql://a:CLAVE@h/db?channel_binding=requirepostgresql://a:CLAVE@h/db?channel_binding=require"
+    with pytest.raises(respaldar_nube.ErrorConexion) as error:
+        respaldar_nube.conectar(url)
+    assert "formato válido" in str(error.value)
+    assert "CLAVE" not in str(error.value)
+
+
+def test_la_copia_automatica_explica_la_direccion_duplicada(monkeypatch, tmp_path):
+    secrets = tmp_path / "secrets.toml"
+    secrets.write_text('DATABASE_URL = "postgresql://a:CLAVE@h/db?x=1postgresql://a:CLAVE@h/db?x=1"\n',
+                       encoding="utf-8")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setattr(respaldar_nube, "ARCHIVO_SECRETS", secrets)
+    monkeypatch.setattr(sys, "argv", ["respaldar_nube.py", "--sin-preguntar", "--carpeta", str(tmp_path / "c")])
+    with pytest.raises(SystemExit, match="más de una vez") as salida:
+        respaldar_nube.main()
+    assert "CLAVE" not in str(salida.value)
+    assert not (tmp_path / "c").exists()

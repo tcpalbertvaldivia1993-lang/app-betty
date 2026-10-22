@@ -18,6 +18,35 @@ import database as bd  # noqa: E402
 URL_PRUEBAS = os.environ.get("CLINICA_PG_PRUEBAS")
 
 
+class _SinSecrets:
+    """Hace de st.secrets como si no existiera el archivo .streamlit/secrets.toml."""
+
+    def _no_hay(self, *argumentos, **opciones):
+        raise FileNotFoundError("No secrets found (pruebas)")
+
+    get = keys = __getitem__ = __contains__ = __iter__ = _no_hay
+
+
+@pytest.fixture(autouse=True)
+def sin_la_base_real(monkeypatch):
+    """Ninguna prueba puede usar la base real de Neon.
+
+    En la computadora puede existir .streamlit/secrets.toml con la dirección real (la usa la
+    copia automática). Si una prueba leyera st.secrets, Streamlit la copiaría además a la
+    variable DATABASE_URL y las pruebas siguientes escribirían en la base real.
+    """
+    import nube
+    import respaldar_nube
+
+    for variable in ("DATABASE_URL", "CODIGO_INVITACION"):
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setattr(nube.st, "secrets", _SinSecrets())
+    monkeypatch.setattr(respaldar_nube, "ARCHIVO_SECRETS", Path("/no/existe/secrets.toml"))
+    monkeypatch.setattr(bd, "URL_POSTGRES", None)
+    monkeypatch.setattr(nube, "ACTIVO", False)
+    monkeypatch.setattr(nube, "CODIGO_INVITACION", "")
+
+
 def _vaciar_postgres():
     """Borra todas las clínicas y las tablas comunes de la base de pruebas."""
     import psycopg

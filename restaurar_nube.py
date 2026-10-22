@@ -20,9 +20,7 @@ import sys
 from pathlib import Path
 
 import database as bd
-from respaldar_nube import (
-    MENSAJE_SIN_CONEXION, TABLAS, conectar, error_de_conexion, obtener_url_nube,
-)
+from respaldar_nube import ErrorConexion, TABLAS, conectar, obtener_url_nube, revisar_url
 
 PALABRA_CONFIRMAR = "RESTAURAR"
 
@@ -146,15 +144,14 @@ def main():
     try:
         info, datos = leer_copia(argumentos.archivo)
         url = obtener_url_nube()
-        if not url.startswith("postgres"):
-            sys.exit("Esa no parece una dirección de Neon: debe empezar por postgresql://")
+        problema = revisar_url(url)
+        if problema:
+            sys.exit(problema)
         ahora = estado_actual(url, info)
     except ErrorRestaurar as error:
         sys.exit(f"Error: {error}")
-    except Exception as error:
-        if error_de_conexion(error):
-            sys.exit(MENSAJE_SIN_CONEXION.format(error=error))
-        raise
+    except ErrorConexion as error:
+        sys.exit(str(error))
 
     print(f"Clínica: {info['nombre']} ({info['esquema']}), copia del {info['fecha_respaldo']}")
     print("  En la copia:", ", ".join(f"{len(datos[t])} {t}" for t in TABLAS))
@@ -170,6 +167,8 @@ def main():
         esquema = restaurar(url, argumentos.archivo)
     except ErrorRestaurar as error:
         sys.exit(f"Error: {error}")
+    except ErrorConexion as error:
+        sys.exit(str(error))
     print(f"Listo: {info['nombre']} restaurada en {esquema}.")
     print("Si la app estaba abierta, cierra sesión y vuelve a entrar.")
 

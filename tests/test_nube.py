@@ -237,6 +237,16 @@ def test_sin_secrets_no_hay_aviso():
     assert nube.problema_con_los_secrets() is None
 
 
+def test_las_pruebas_no_ven_la_direccion_real():
+    """Aunque exista .streamlit/secrets.toml (copia automática), las pruebas no lo leen."""
+    import respaldar_nube
+
+    nube.configurar()
+    assert not nube.ACTIVO
+    assert bd.URL_POSTGRES is None
+    assert respaldar_nube.obtener_url_nube(preguntar=False) == ""
+
+
 def test_los_secrets_se_leen_en_cada_recarga(monkeypatch):
     """Si se guarda DATABASE_URL con la app funcionando, la siguiente recarga ya usa la nube."""
     monkeypatch.setattr(bd, "URL_POSTGRES", None)
