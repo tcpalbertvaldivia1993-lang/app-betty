@@ -163,3 +163,22 @@ def test_direccion_de_neon(monkeypatch, tmp_path):
     secrets.unlink()  # sin variable ni archivo: se pide por teclado (sin mostrarla)
     monkeypatch.setattr(respaldar_nube.getpass, "getpass", lambda texto: " postgresql://tecleada ")
     assert respaldar_nube.obtener_url_nube() == "postgresql://tecleada"
+
+
+def test_si_no_conecta_no_crea_carpeta(tmp_path):
+    """Con una dirección equivocada no queda ninguna carpeta vacía."""
+    url_mala = "postgresql://nadie@127.0.0.1:1/no_existe?connect_timeout=2"
+    with pytest.raises(Exception) as error:
+        respaldar_nube.respaldar(url_mala, tmp_path)
+    assert respaldar_nube.error_de_conexion(error.value)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_si_falla_a_medias_borra_la_carpeta(clinicas, tmp_path, monkeypatch):
+    def falla(*argumentos):
+        raise RuntimeError("se cortó la conexión")
+
+    monkeypatch.setattr(respaldar_nube, "respaldar_clinica", falla)
+    with pytest.raises(RuntimeError):
+        respaldar_nube.respaldar(URL_PRUEBAS, tmp_path)
+    assert list(tmp_path.iterdir()) == []

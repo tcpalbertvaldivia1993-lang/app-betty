@@ -19,6 +19,7 @@ import argparse
 import getpass
 import json
 import os
+import shutil
 import sqlite3
 import sys
 import tomllib
@@ -98,8 +99,8 @@ def respaldar_clinica(conexion, clinica, destino):
 def respaldar(url, carpeta=CARPETA_RESPALDOS, incluir_demos=False):
     """Respalda todas las clínicas en una carpeta nueva con la fecha. Devuelve (carpeta, resumen)."""
     destino = Path(carpeta) / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    destino.mkdir(parents=True)
     resumen = []
+    # Primero se conecta: si la dirección está mal, no se crea ninguna carpeta
     with conectar(url) as conexion:
         clinicas = conexion.execute(
             """SELECT esquema, nombre, temporal FROM public.clinicas
@@ -107,15 +108,34 @@ def respaldar(url, carpeta=CARPETA_RESPALDOS, incluir_demos=False):
                ORDER BY id""",
             (incluir_demos,),
         ).fetchall()
-        for clinica in clinicas:
-            archivo = destino / f"{clinica['esquema']}.db"
-            filas = respaldar_clinica(conexion, clinica, archivo)
-            resumen.append({**clinica, "archivo": archivo.name, "filas": filas})
-    # Índice de la carpeta: qué clínica hay en cada archivo (sin datos de pacientes)
-    (destino / "indice.json").write_text(
-        json.dumps(resumen, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+        destino.mkdir(parents=True)
+        try:
+            for clinica in clinicas:
+                archivo = destino / f"{clinica['esquema']}.db"
+                filas = respaldar_clinica(conexion, clinica, archivo)
+                resumen.append({**clinica, "archivo": archivo.name, "filas": filas})
+            # Índice de la carpeta: qué clínica hay en cada archivo (sin datos de pacientes)
+            (destino / "indice.json").write_text(
+                json.dumps(resumen, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except BaseException:
+            # Una copia a medias no sirve y confunde: se borra la carpeta
+            shutil.rmtree(destino, ignore_errors=True)
+            raise
     return destino, resumen
+
+
+def error_de_conexion(error):
+    """True si el error es que no se pudo conectar a Neon (dirección o contraseña incorrecta)."""
+    import psycopg
+
+    return isinstance(error, psycopg.OperationalError)
+
+
+MENSAJE_SIN_CONEXION = (
+    "No se pudo conectar a Neon. Revisa que la dirección esté completa y bien copiada "
+    "(Connect → Copy snippet).\nDetalle: {error}"
+)
 
 
 def main():
@@ -130,7 +150,12 @@ def main():
     if not url.startswith("postgres"):
         sys.exit("Esa no parece una dirección de Neon: debe empezar por postgresql://")
     print("Copiando...")
-    carpeta, resumen = respaldar(url, argumentos.carpeta, argumentos.incluir_demos)
+    try:
+        carpeta, resumen = respaldar(url, argumentos.carpeta, argumentos.incluir_demos)
+    except Exception as error:
+        if error_de_conexion(error):
+            sys.exit(MENSAJE_SIN_CONEXION.format(error=error))
+        raise
     for clinica in resumen:
         filas = clinica["filas"]
         print(f"  {clinica['nombre']} → {clinica['archivo']}: {filas['pacientes']} pacientes, "
