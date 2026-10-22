@@ -284,12 +284,51 @@ TEXTOS = {
     "palabra_confirmar": {"es": "BORRAR", "en": "DELETE"},
     "reiniciar_escribe": {"es": "Escribe {palabra} para confirmar", "en": "Type {palabra} to confirm"},
     "boton_reiniciar": {"es": "Borrar todo y empezar de cero", "en": "Delete everything and start over"},
-    # Modo demostración (demo.py)
+    # ---------- La nube: varias clínicas (nube.py) ----------
+    "acceso_titulo": {"es": "🏥 Clínica - Citas", "en": "🏥 Clinic - Appointments"},
+    "pestana_entrar": {"es": "🔒 Iniciar sesión", "en": "🔒 Log in"},
+    "pestana_crear_clinica": {"es": "🏥 Crear clínica", "en": "🏥 Create clinic"},
+    "pestana_demo": {"es": "🧪 Probar la demostración", "en": "🧪 Try the demo"},
+    "crear_clinica_explicacion": {
+        "es": "Crea la cuenta de tu clínica y su administrador. Tus datos quedan guardados: "
+              "podrás entrar desde cualquier dispositivo con tu usuario y contraseña. "
+              "Necesitas el código de invitación.",
+        "en": "Create your clinic's account and its administrator. Your data is saved: "
+              "you can log in from any device with your username and password. "
+              "You need the invitation code.",
+    },
+    "registro_cerrado": {
+        "es": "Por ahora no se pueden crear clínicas nuevas. Puedes probar la demostración.",
+        "en": "New clinics can't be created right now. You can try the demo.",
+    },
+    "demo_explicacion": {
+        "es": "Crea una clínica de prueba con datos de ejemplo, sin código. Elige tu usuario y "
+              "contraseña para volver a entrar. Se borra sola tras {horas} horas sin uso.",
+        "en": "Create a test clinic with sample data, no code needed. Choose a username and "
+              "password to log back in. It is deleted after {horas} hours without use.",
+    },
+    "campo_nombre_clinica": {"es": "Nombre de la clínica", "en": "Clinic name"},
+    "nombre_clinica_demo": {"es": "Clínica de prueba", "en": "Test clinic"},
+    "campo_codigo_invitacion": {"es": "Código de invitación", "en": "Invitation code"},
+    "ayuda_codigo_invitacion": {
+        "es": "Te lo da quien administra esta app.",
+        "en": "Ask the person who runs this app.",
+    },
+    "error_codigo_invitacion": {
+        "es": "El código de invitación no es correcto.",
+        "en": "The invitation code is not correct.",
+    },
+    "casilla_datos_ejemplo": {
+        "es": "Agregar datos de ejemplo (doctores, pacientes y citas) para probar",
+        "en": "Add sample data (doctors, patients and appointments) to try it out",
+    },
+    "boton_crear_clinica": {"es": "Crear clínica", "en": "Create clinic"},
+    "boton_probar_demo": {"es": "Crear clínica de prueba", "en": "Create test clinic"},
+    "creando_clinica": {"es": "Creando la clínica...", "en": "Creating the clinic..."},
+    "clinica_actual": {"es": "🏥 **{nombre}**", "en": "🏥 **{nombre}**"},
     "demo_aviso": {
-        "es": "🧪 Demostración: tus datos son privados y temporales. Se borran tras {horas} horas "
-              "sin uso. Guarda la dirección de esta página para volver. No escribas datos reales.",
-        "en": "🧪 Demo: your data is private and temporary. It is deleted after {horas} hours "
-              "without use. Bookmark this page's address to come back. Don't enter real data.",
+        "es": "🧪 Clínica de demostración: se borra tras {horas} horas sin uso. No escribas datos reales.",
+        "en": "🧪 Demo clinic: it is deleted after {horas} hours without use. Don't enter real data.",
     },
     "reinicio_hecho": {
         "es": "Datos borrados: {doctores} doctores, {pacientes} pacientes y {citas} citas. "
@@ -305,6 +344,10 @@ TEXTOS = {
     },
     "err_usuario_obligatorio": {"es": "El usuario es obligatorio.", "en": "The username is required."},
     "err_rol_invalido": {"es": "Rol no válido: {rol}", "en": "Invalid role: {rol}"},
+    "err_nombre_clinica": {
+        "es": "El nombre de la clínica es obligatorio.",
+        "en": "The clinic name is required.",
+    },
     "err_usuario_existe": {"es": "Ese usuario ya existe.", "en": "That username already exists."},
     "err_contrasena_actual": {
         "es": "La contraseña actual no es correcta.",

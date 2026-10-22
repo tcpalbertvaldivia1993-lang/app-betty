@@ -1,12 +1,20 @@
-"""Acceso a la base de datos SQLite de la clínica.
+"""Acceso a la base de datos de la clínica.
+
+Funciona con dos motores:
+- SQLite (un archivo): el programa para Windows y el desarrollo en la computadora.
+- PostgreSQL (Neon, en la nube): la app publicada en internet, con varias clínicas. Se usa
+  cuando existe la variable DATABASE_URL. Cada clínica tiene su propio esquema
+  (clinica_1, clinica_2...) con las mismas tablas, así nadie ve los datos de otra clínica.
 
 Este módulo no usa Streamlit: solo guarda y lee datos.
 Así se puede probar con pytest sin abrir la interfaz.
 """
 
+import atexit
 import hashlib
 import hmac
 import os
+import re
 import secrets
 import sqlite3
 from contextvars import ContextVar
@@ -21,28 +29,211 @@ from traducciones import ErrorValidacion
 # El programa para Windows (lanzador.py) la cambia con la variable de entorno CLINICA_BD.
 RUTA_BD = Path(os.environ.get("CLINICA_BD", Path(__file__).parent / "clinica.db"))
 
-# En la demostración por internet, cada visita usa su propia base de datos (ver demo.py).
-# app.py la pone al principio de cada recarga; si no se pone, se usa RUTA_BD.
-ruta_sesion = ContextVar("ruta_sesion", default=None)
 
 
 def ruta_actual(ruta=None):
-    """La ruta de la base que se va a usar: la indicada, la de la visita o RUTA_BD."""
-    return Path(ruta or ruta_sesion.get() or RUTA_BD)
+    """La ruta del archivo SQLite que se va a usar: la indicada o RUTA_BD."""
+    return Path(ruta or RUTA_BD)
 
 ESTADOS_CITA = ["programada", "atendida", "cancelada", "no_asistio"]
 
+# ---------- PostgreSQL (la app publicada en internet) ----------
+
+# Dirección de la base en la nube. En Streamlit Community Cloud se pone en los Secrets.
+URL_POSTGRES = os.environ.get("DATABASE_URL")
+
+# La clínica de la sesión (su esquema, p. ej. "clinica_3"). app.py la pone en cada recarga.
+esquema_sesion = ContextVar("esquema_sesion", default=None)
+
+# Solo se aceptan nombres de esquema creados por crear_clinica()
+FORMATO_ESQUEMA = re.compile(r"clinica_\d+")
+
+_pools = {}  # un grupo de conexiones abiertas por cada URL, para no reconectar en cada consulta
+
+
+def usa_postgres(ruta=None):
+    """True si hay que usar PostgreSQL (si se indica una ruta, siempre es SQLite)."""
+    return ruta is None and bool(URL_POSTGRES)
+
+
+class _Fila(dict):
+    """Fila que se lee por nombre (fila["id"]) o por posición (fila[0]), como sqlite3.Row."""
+
+    def __getitem__(self, clave):
+        if isinstance(clave, int):
+            return list(self.values())[clave]
+        return super().__getitem__(clave)
+
+
+def _fabrica_de_filas(cursor):
+    nombres = [columna.name for columna in cursor.description or []]
+    return lambda valores: _Fila(zip(nombres, valores))
+
+
+class _Resultado:
+    """Lo que devuelve execute(): filas y, después de un INSERT, el id nuevo."""
+
+    def __init__(self, cursor):
+        self._cursor = cursor
+        self.columnas = [columna.name for columna in cursor.description or []]
+
+    def fetchone(self):
+        return self._cursor.fetchone()
+
+    def fetchall(self):
+        return self._cursor.fetchall()
+
+    def __iter__(self):
+        return iter(self._cursor.fetchall())
+
+    @property
+    def lastrowid(self):
+        # El último id creado en esta conexión (se lee justo después del INSERT)
+        return self._cursor.connection.execute("SELECT lastval()").fetchone()[0]
+
+
+class _ConexionPostgres:
+    """Imita lo que este módulo usa de sqlite3 sobre una conexión de PostgreSQL.
+
+    Así las mismas funciones (con ? en las consultas) sirven para los dos motores.
+    """
+
+    def __init__(self, esquema):
+        self._pool = _obtener_pool()
+        self._conexion = self._pool.getconn()
+        if esquema is not None and not FORMATO_ESQUEMA.fullmatch(esquema):
+            raise ValueError(f"Esquema no válido: {esquema!r}")
+        # Solo se ven las tablas de esta clínica (sin clínica, solo las comunes de public)
+        self._conexion.execute(
+            "SELECT set_config('search_path', %s, false)",
+            (f'"{esquema}"' if esquema else "public",),
+        )
+
+    def execute(self, consulta, parametros=()):
+        # sqlite3 usa ? para los valores y psycopg usa %s
+        consulta = consulta.replace("%", "%%").replace("?", "%s")
+        return _Resultado(self._conexion.execute(consulta, parametros))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, tipo_error, error, traza):
+        # Igual que sqlite3: si todo fue bien se guarda, si hubo un error no se guarda nada
+        if tipo_error is None:
+            self._conexion.commit()
+        else:
+            self._conexion.rollback()
+            self.close()  # si hubo error, quien llamó no llegará a cerrarla
+
+    def close(self):
+        if self._conexion is not None:
+            self._pool.putconn(self._conexion)
+            self._conexion = None
+
+
+def _obtener_pool():
+    if URL_POSTGRES not in _pools:
+        from psycopg_pool import ConnectionPool  # solo hace falta en la nube (el .exe no lo trae)
+
+        _pools[URL_POSTGRES] = ConnectionPool(
+            URL_POSTGRES, min_size=1, max_size=4, open=True,
+            kwargs={"row_factory": _fabrica_de_filas},
+            # Neon cierra las conexiones que no se usan: se comprueban antes de usarlas
+            check=ConnectionPool.check_connection,
+        )
+    return _pools[URL_POSTGRES]
+
+
+@atexit.register
+def _cerrar_pools():
+    """Cierra las conexiones con la nube al terminar el programa."""
+    for pool in _pools.values():
+        pool.close()
+    _pools.clear()
+
+
+def _es_duplicado(error):
+    """True si el error es por un valor repetido (p. ej. un nombre de usuario que ya existe)."""
+    if isinstance(error, sqlite3.IntegrityError):
+        return True
+    try:
+        import psycopg
+    except ImportError:
+        return False
+    return isinstance(error, psycopg.errors.UniqueViolation)
+
 
 def obtener_conexion(ruta=None):
-    """Abre una conexión con las claves foráneas activadas."""
+    """Abre una conexión: SQLite con las claves foráneas activadas, o PostgreSQL en la nube."""
+    if usa_postgres(ruta):
+        return _ConexionPostgres(esquema_sesion.get())
     conexion = sqlite3.connect(ruta_actual(ruta))
     conexion.row_factory = sqlite3.Row  # permite leer columnas por nombre
     conexion.execute("PRAGMA foreign_keys = ON")
     return conexion
 
 
+def _leer_tabla(conexion, consulta, parametros=()):
+    """Ejecuta una consulta y devuelve el resultado como DataFrame (en los dos motores)."""
+    if isinstance(conexion, sqlite3.Connection):
+        return pd.read_sql_query(consulta, conexion, params=parametros)
+    resultado = conexion.execute(consulta, parametros)
+    return pd.DataFrame(resultado.fetchall(), columns=resultado.columnas)
+
+
+# Tablas de cada clínica en PostgreSQL: las mismas que en SQLite, con los tipos de PostgreSQL
+_TABLAS_POSTGRES = """
+    CREATE TABLE IF NOT EXISTS pacientes (
+        id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+        nombre TEXT NOT NULL,
+        apellido TEXT NOT NULL,
+        telefono TEXT,
+        email TEXT,
+        fecha_nacimiento TEXT,
+        notas TEXT,
+        creado_en TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+    );
+
+    CREATE TABLE IF NOT EXISTS doctores (
+        id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+        nombre TEXT NOT NULL,
+        especialidad TEXT NOT NULL,
+        telefono TEXT,
+        activo INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS citas (
+        id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+        paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+        doctor_id INTEGER NOT NULL REFERENCES doctores(id),
+        fecha TEXT NOT NULL,
+        hora_inicio TEXT NOT NULL,
+        duracion_min INTEGER NOT NULL DEFAULT 30,
+        motivo TEXT,
+        estado TEXT NOT NULL DEFAULT 'programada'
+            CHECK (estado IN ('programada', 'atendida', 'cancelada', 'no_asistio')),
+        creado_en TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+    );
+
+    CREATE TABLE IF NOT EXISTS usuarios (
+        id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+        usuario TEXT NOT NULL UNIQUE,
+        sal TEXT NOT NULL,
+        hash_contrasena TEXT NOT NULL,
+        rol TEXT NOT NULL DEFAULT 'personal' CHECK (rol IN ('administrador', 'personal')),
+        activo INTEGER NOT NULL DEFAULT 1,
+        creado_en TEXT DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+    );
+"""
+
+
 def crear_tablas(ruta=None):
     """Crea las tablas si todavía no existen."""
+    if usa_postgres(ruta):
+        with obtener_conexion() as conexion:
+            conexion.execute(_TABLAS_POSTGRES)
+        conexion.close()
+        return
     with obtener_conexion(ruta) as conexion:
         conexion.executescript(
             """
@@ -128,8 +319,8 @@ def _validar_contrasena(contrasena):
         raise ErrorValidacion("err_contrasena_corta", minimo=LARGO_MINIMO_CONTRASENA)
 
 
-def crear_usuario(usuario, contrasena, rol="personal", ruta=None):
-    """Crea un usuario con su contraseña protegida. Devuelve su id."""
+def _validar_usuario_nuevo(usuario, contrasena, rol):
+    """Comprueba los datos de un usuario nuevo y devuelve (usuario, sal, hash)."""
     usuario = usuario.strip()
     if not usuario:
         raise ErrorValidacion("err_usuario_obligatorio")
@@ -137,16 +328,37 @@ def crear_usuario(usuario, contrasena, rol="personal", ruta=None):
         raise ErrorValidacion("err_rol_invalido", rol=rol)
     _validar_contrasena(contrasena)
     sal = secrets.token_hex(16)  # valor aleatorio distinto para cada usuario
+    return usuario, sal, _calcular_hash(contrasena, sal)
+
+
+def _insertar_usuario(conexion, usuario, sal, hash_contrasena, rol, esquema):
+    """Guarda el usuario y, en la nube, anota en el directorio a qué clínica pertenece."""
+    cursor = conexion.execute(
+        "INSERT INTO usuarios (usuario, sal, hash_contrasena, rol) VALUES (?, ?, ?, ?)",
+        (usuario, sal, hash_contrasena, rol),
+    )
+    nuevo_id = cursor.lastrowid
+    if esquema is not None:
+        # El nombre de usuario es único en toda la app: así al entrar se sabe su clínica
+        conexion.execute(
+            "INSERT INTO public.directorio_usuarios (usuario, esquema) VALUES (?, ?)",
+            (usuario, esquema),
+        )
+    return nuevo_id
+
+
+def crear_usuario(usuario, contrasena, rol="personal", ruta=None):
+    """Crea un usuario con su contraseña protegida. Devuelve su id."""
+    datos = _validar_usuario_nuevo(usuario, contrasena, rol)
+    esquema = esquema_sesion.get() if usa_postgres(ruta) else None
     try:
         with obtener_conexion(ruta) as conexion:
-            cursor = conexion.execute(
-                "INSERT INTO usuarios (usuario, sal, hash_contrasena, rol) VALUES (?, ?, ?, ?)",
-                (usuario, sal, _calcular_hash(contrasena, sal), rol),
-            )
-            nuevo_id = cursor.lastrowid
+            nuevo_id = _insertar_usuario(conexion, *datos, rol, esquema)
         conexion.close()
-    except sqlite3.IntegrityError:
-        raise ErrorValidacion("err_usuario_existe") from None
+    except Exception as error:
+        if _es_duplicado(error):
+            raise ErrorValidacion("err_usuario_existe") from None
+        raise
     return nuevo_id
 
 
@@ -164,9 +376,8 @@ def obtener_usuario(usuario, ruta=None):
 def listar_usuarios(ruta=None):
     """Devuelve todos los usuarios como DataFrame (sin datos de contraseña)."""
     with obtener_conexion(ruta) as conexion:
-        tabla = pd.read_sql_query(
-            "SELECT id, usuario, rol, activo, creado_en FROM usuarios ORDER BY usuario",
-            conexion,
+        tabla = _leer_tabla(
+            conexion, "SELECT id, usuario, rol, activo, creado_en FROM usuarios ORDER BY usuario"
         )
     conexion.close()
     return tabla
@@ -270,9 +481,7 @@ def actualizar_paciente(paciente_id, nombre, apellido, telefono="", email="",
 def listar_pacientes(ruta=None):
     """Devuelve todos los pacientes como DataFrame."""
     with obtener_conexion(ruta) as conexion:
-        tabla = pd.read_sql_query(
-            "SELECT * FROM pacientes ORDER BY apellido, nombre", conexion
-        )
+        tabla = _leer_tabla(conexion, "SELECT * FROM pacientes ORDER BY apellido, nombre")
     conexion.close()
     return tabla
 
@@ -280,14 +489,16 @@ def listar_pacientes(ruta=None):
 def buscar_pacientes(texto, ruta=None):
     """Busca pacientes por nombre, apellido o teléfono."""
     patron = f"%{texto.strip()}%"
+    # En SQLite LIKE no distingue mayúsculas; en PostgreSQL hace falta ILIKE
+    like = "ILIKE" if usa_postgres(ruta) else "LIKE"
     with obtener_conexion(ruta) as conexion:
-        tabla = pd.read_sql_query(
-            """SELECT * FROM pacientes
-               WHERE nombre LIKE ? OR apellido LIKE ? OR telefono LIKE ?
-                     OR (nombre || ' ' || apellido) LIKE ?
-               ORDER BY apellido, nombre""",
+        tabla = _leer_tabla(
             conexion,
-            params=(patron, patron, patron, patron),
+            f"""SELECT * FROM pacientes
+                WHERE nombre {like} ? OR apellido {like} ? OR telefono {like} ?
+                      OR (nombre || ' ' || apellido) {like} ?
+                ORDER BY apellido, nombre""",
+            (patron, patron, patron, patron),
         )
     conexion.close()
     return tabla
@@ -316,7 +527,7 @@ def listar_doctores(solo_activos=True, ruta=None):
         consulta += " WHERE activo = 1"
     consulta += " ORDER BY nombre"
     with obtener_conexion(ruta) as conexion:
-        tabla = pd.read_sql_query(consulta, conexion)
+        tabla = _leer_tabla(conexion, consulta)
     conexion.close()
     return tabla
 
@@ -436,7 +647,7 @@ def citas_por_rango(desde, hasta, doctor_id=None, ruta=None):
     consulta += " ORDER BY c.fecha, c.hora_inicio"
 
     with obtener_conexion(ruta) as conexion:
-        tabla = pd.read_sql_query(consulta, conexion, params=parametros)
+        tabla = _leer_tabla(conexion, consulta, parametros)
     conexion.close()
     return tabla
 
@@ -444,15 +655,15 @@ def citas_por_rango(desde, hasta, doctor_id=None, ruta=None):
 def estadisticas(desde, hasta, ruta=None):
     """Cuenta las citas por doctor y estado en un rango de fechas."""
     with obtener_conexion(ruta) as conexion:
-        tabla = pd.read_sql_query(
+        tabla = _leer_tabla(
+            conexion,
             """SELECT d.nombre AS doctor, c.estado, COUNT(*) AS total
                FROM citas c
                JOIN doctores d ON d.id = c.doctor_id
                WHERE c.fecha BETWEEN ? AND ?
                GROUP BY d.nombre, c.estado
                ORDER BY d.nombre, c.estado""",
-            conexion,
-            params=(str(desde), str(hasta)),
+            (str(desde), str(hasta)),
         )
     conexion.close()
     return tabla
@@ -499,8 +710,10 @@ def crear_respaldo(ruta=None):
 def reiniciar_datos(ruta=None):
     """Borra todas las citas, doctores y pacientes. Los usuarios se conservan.
 
-    Antes de borrar guarda un respaldo. Devuelve (ruta del respaldo, filas borradas por tabla).
+    Antes de borrar guarda un respaldo. Devuelve (dónde quedó el respaldo, filas borradas por tabla).
     """
+    if usa_postgres(ruta):
+        return _reiniciar_datos_postgres()
     respaldo = crear_respaldo(ruta)
     borrados = contar_datos(ruta)
     with obtener_conexion(ruta) as conexion:  # todo o nada: si algo falla, no se borra nada
@@ -512,3 +725,142 @@ def reiniciar_datos(ruta=None):
         )
     conexion.close()
     return respaldo, borrados
+
+
+def _reiniciar_datos_postgres():
+    """Como reiniciar_datos, en la nube: la copia queda en el esquema <clínica>_respaldo."""
+    esquema = esquema_sesion.get()
+    respaldo = f"{esquema}_respaldo"
+    borrados = contar_datos()
+    with obtener_conexion() as conexion:  # todo o nada
+        # Se guarda solo la última copia (cada reinicio reemplaza la anterior)
+        conexion.execute(f'DROP SCHEMA IF EXISTS "{respaldo}" CASCADE')
+        conexion.execute(f'CREATE SCHEMA "{respaldo}"')
+        for tabla in TABLAS_DE_DATOS:
+            conexion.execute(f'CREATE TABLE "{respaldo}".{tabla} AS SELECT * FROM {tabla}')
+        # Los números de ID vuelven a empezar desde 1
+        conexion.execute(f"TRUNCATE {', '.join(TABLAS_DE_DATOS)} RESTART IDENTITY")
+    conexion.close()
+    return respaldo, borrados
+
+
+# ---------- Clínicas (solo en la nube, con PostgreSQL) ----------
+
+HORAS_DEMO = 24  # las clínicas de demostración se borran tras este tiempo sin uso
+
+
+def preparar_nube():
+    """Crea las tablas comunes a todas las clínicas, si todavía no existen."""
+    with obtener_conexion() as conexion:
+        conexion.execute(
+            """
+            CREATE TABLE IF NOT EXISTS public.clinicas (
+                id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                esquema TEXT UNIQUE,
+                nombre TEXT NOT NULL,
+                temporal BOOLEAN NOT NULL DEFAULT FALSE,
+                ultimo_uso TIMESTAMPTZ NOT NULL DEFAULT now(),
+                creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE TABLE IF NOT EXISTS public.directorio_usuarios (
+                usuario TEXT PRIMARY KEY,
+                esquema TEXT NOT NULL
+            );
+            """
+        )
+    conexion.close()
+
+
+def crear_clinica(nombre, usuario, contrasena, temporal=False):
+    """Crea una clínica nueva con su administrador. Devuelve su esquema (p. ej. "clinica_3").
+
+    Todo pasa en una sola transacción: si algo falla (p. ej. el usuario ya existe), no queda nada a medias.
+    """
+    nombre = nombre.strip()
+    if not nombre:
+        raise ErrorValidacion("err_nombre_clinica")
+    datos = _validar_usuario_nuevo(usuario, contrasena, "administrador")
+    token = esquema_sesion.set(None)  # las tablas comunes están en public
+    try:
+        with obtener_conexion() as conexion:
+            id_clinica = conexion.execute(
+                "INSERT INTO public.clinicas (nombre, temporal) VALUES (?, ?) RETURNING id",
+                (nombre, temporal),
+            ).fetchone()[0]
+            esquema = f"clinica_{id_clinica}"
+            conexion.execute("UPDATE public.clinicas SET esquema = ? WHERE id = ?", (esquema, id_clinica))
+            conexion.execute(f'CREATE SCHEMA "{esquema}"')
+            conexion.execute(f"""SELECT set_config('search_path', '"{esquema}"', true)""")
+            conexion.execute(_TABLAS_POSTGRES)
+            _insertar_usuario(conexion, *datos, "administrador", esquema)
+        conexion.close()
+    except Exception as error:
+        if _es_duplicado(error):
+            raise ErrorValidacion("err_usuario_existe") from None
+        raise
+    finally:
+        esquema_sesion.reset(token)
+    return esquema
+
+
+def esquema_de_usuario(usuario):
+    """El esquema de la clínica a la que pertenece el usuario, o None si no existe."""
+    token = esquema_sesion.set(None)
+    try:
+        with obtener_conexion() as conexion:
+            fila = conexion.execute(
+                "SELECT esquema FROM public.directorio_usuarios WHERE usuario = ?",
+                (usuario.strip(),),
+            ).fetchone()
+        conexion.close()
+    finally:
+        esquema_sesion.reset(token)
+    return fila["esquema"] if fila else None
+
+
+def usar_clinica(esquema):
+    """Datos de la clínica ({"nombre", "temporal"}) o None si ya no existe.
+
+    También anota que se está usando (como mucho una vez por hora), para que las
+    clínicas de demostración en uso no se borren.
+    """
+    token = esquema_sesion.set(None)
+    try:
+        with obtener_conexion() as conexion:
+            fila = conexion.execute(
+                "SELECT nombre, temporal FROM public.clinicas WHERE esquema = ?", (esquema,)
+            ).fetchone()
+            conexion.execute(
+                """UPDATE public.clinicas SET ultimo_uso = now()
+                   WHERE esquema = ? AND ultimo_uso < now() - interval '1 hour'""",
+                (esquema,),
+            )
+        conexion.close()
+    finally:
+        esquema_sesion.reset(token)
+    return dict(fila) if fila else None
+
+
+def borrar_clinicas_temporales_viejas(horas=HORAS_DEMO):
+    """Borra las clínicas de demostración que llevan más de `horas` sin usarse. Devuelve cuántas."""
+    token = esquema_sesion.set(None)
+    try:
+        with obtener_conexion() as conexion:
+            viejas = [
+                fila["esquema"] for fila in conexion.execute(
+                    """SELECT esquema FROM public.clinicas
+                       WHERE temporal AND ultimo_uso < now() - make_interval(hours => ?)""",
+                    (horas,),
+                )
+            ]
+            for esquema in viejas:
+                if not FORMATO_ESQUEMA.fullmatch(esquema):
+                    continue
+                conexion.execute(f'DROP SCHEMA IF EXISTS "{esquema}" CASCADE')
+                conexion.execute(f'DROP SCHEMA IF EXISTS "{esquema}_respaldo" CASCADE')
+                conexion.execute("DELETE FROM public.directorio_usuarios WHERE esquema = ?", (esquema,))
+                conexion.execute("DELETE FROM public.clinicas WHERE esquema = ?", (esquema,))
+        conexion.close()
+    finally:
+        esquema_sesion.reset(token)
+    return len(viejas)

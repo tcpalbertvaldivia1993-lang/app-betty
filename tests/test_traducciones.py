@@ -31,7 +31,7 @@ def test_mismos_campos_en_cada_idioma():
 
 def test_claves_usadas_en_el_codigo_existen():
     """Busca t("clave") y ErrorValidacion("clave") en el código y comprueba que existan."""
-    archivos = [RAIZ / "app.py", RAIZ / "database.py", *sorted((RAIZ / "paginas").glob("*.py"))]
+    archivos = [RAIZ / "app.py", RAIZ / "database.py", RAIZ / "nube.py", *sorted((RAIZ / "paginas").glob("*.py"))]
     patron = re.compile(r"""(?:\bt|ErrorValidacion)\(\s*["'](\w+)["']""")
     usadas = set()
     for archivo in archivos:
