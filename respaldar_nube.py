@@ -51,12 +51,42 @@ def obtener_url_nube(preguntar=True):
     return getpass.getpass("Pega la dirección de Neon (postgresql://...) y pulsa Enter: ").strip()
 
 
+class ErrorConexion(Exception):
+    """No se pudo conectar a Neon. El mensaje dice qué revisar (nunca muestra la dirección)."""
+
+
+def revisar_url(url):
+    """Errores típicos al pegar la dirección. Devuelve el mensaje para el usuario, o None si se ve bien."""
+    if not url:
+        return "Falta la dirección de Neon: ponla en .streamlit/secrets.toml (ver README)."
+    if not url.startswith("postgres"):
+        return "Esa no parece una dirección de Neon: debe empezar por postgresql://"
+    if url.count("://") > 1:
+        return ("La dirección de Neon está pegada más de una vez seguida. "
+                "Déjala una sola vez en .streamlit/secrets.toml.")
+    if any(caracter.isspace() for caracter in url):
+        return "La dirección de Neon tiene espacios o saltos de línea: cópiala otra vez."
+    return None
+
+
 def conectar(url):
     """Conexión directa a Neon. REPEATABLE READ: cada clínica se copia tal como estaba en un instante."""
     import psycopg
     from psycopg.rows import dict_row
 
-    conexion = psycopg.connect(url, row_factory=dict_row)
+    try:
+        conexion = psycopg.connect(url, row_factory=dict_row, connect_timeout=30)
+    except psycopg.ProgrammingError:
+        # Formato inválido. Sin el detalle: podría llevar trozos de la dirección (y la contraseña)
+        raise ErrorConexion(
+            "La dirección de Neon no tiene un formato válido. Cópiala otra vez "
+            "(Connect → Copy snippet) y ponla una sola vez, entre comillas."
+        ) from None
+    except psycopg.OperationalError as error:
+        raise ErrorConexion(
+            "No se pudo conectar a Neon. Revisa la conexión a internet y que la dirección esté "
+            f"completa y bien copiada (Connect → Copy snippet).\nDetalle: {error}"
+        ) from None
     conexion.isolation_level = psycopg.IsolationLevel.REPEATABLE_READ
     return conexion
 
@@ -111,19 +141,6 @@ def respaldar(url, carpeta=CARPETA_RESPALDOS, incluir_demos=False):
     return destino, resumen
 
 
-def error_de_conexion(error):
-    """True si el error es que no se pudo conectar a Neon (dirección o contraseña incorrecta)."""
-    import psycopg
-
-    return isinstance(error, psycopg.OperationalError)
-
-
-MENSAJE_SIN_CONEXION = (
-    "No se pudo conectar a Neon. Revisa que la dirección esté completa y bien copiada "
-    "(Connect → Copy snippet).\nDetalle: {error}"
-)
-
-
 def main():
     parser = argparse.ArgumentParser(description="Copia de seguridad de las clínicas de la nube.")
     parser.add_argument("--incluir-demos", action="store_true",
@@ -134,19 +151,16 @@ def main():
                         help="para la copia automática: no pedir la dirección por teclado")
     argumentos = parser.parse_args()
 
-    url = obtener_url_nube(preguntar=not argumentos.sin_preguntar)
-    if not url:
-        sys.exit("Falta la dirección de Neon: ponla en .streamlit/secrets.toml (ver README).")
-    if not url.startswith("postgres"):
-        sys.exit("Esa no parece una dirección de Neon: debe empezar por postgresql://")
     print(f"=== Copia del {datetime.now():%Y-%m-%d %H:%M} ===")
+    url = obtener_url_nube(preguntar=not argumentos.sin_preguntar)
+    problema = revisar_url(url)
+    if problema:
+        sys.exit(problema)
     print("Copiando...")
     try:
         carpeta, resumen = respaldar(url, argumentos.carpeta, argumentos.incluir_demos)
-    except Exception as error:
-        if error_de_conexion(error):
-            sys.exit(MENSAJE_SIN_CONEXION.format(error=error))
-        raise
+    except ErrorConexion as error:
+        sys.exit(str(error))
     for clinica in resumen:
         filas = clinica["filas"]
         print(f"  {clinica['nombre']} → {clinica['archivo']}: {filas['pacientes']} pacientes, "
