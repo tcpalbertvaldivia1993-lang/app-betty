@@ -40,6 +40,23 @@ def _secreto(nombre):
         return None
 
 
+def problema_con_los_secrets():
+    """Si hay Secrets pero la app no encuentra DATABASE_URL, explica por qué. Si no, None.
+
+    Nunca muestra los valores (llevan contraseñas): solo los nombres o el tipo de error.
+    Sin archivo de Secrets (en la computadora o en el .exe) no hay nada que avisar.
+    """
+    try:
+        nombres = list(st.secrets.keys())
+    except Exception as error:
+        if getattr(error, "error_id", "") == "no-secrets-found" or isinstance(error, FileNotFoundError):
+            return None
+        return t("secrets_con_error", tipo=type(error).__name__)
+    if "DATABASE_URL" in nombres:
+        return None
+    return t("secrets_sin_url", nombres=", ".join(nombres) or "-")
+
+
 bd.URL_POSTGRES = bd.URL_POSTGRES or _secreto("DATABASE_URL")
 ACTIVO = bd.usa_postgres()
 CODIGO_INVITACION = _secreto("CODIGO_INVITACION") or ""

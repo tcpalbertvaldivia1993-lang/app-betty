@@ -20,6 +20,10 @@ if nube.ACTIVO:
     bd.esquema_sesion.set(None)  # sin sesión no se ve ninguna clínica
 else:
     bd.crear_tablas()
+    # En Streamlit Community Cloud: avisa si los Secrets están mal (sin mostrar sus valores)
+    problema = nube.problema_con_los_secrets()
+    if problema:
+        st.error(problema)
 
 # Selector de idioma: se muestra siempre, también antes de iniciar sesión.
 # Con key="idioma" la elección queda guardada en st.session_state["idioma"].
