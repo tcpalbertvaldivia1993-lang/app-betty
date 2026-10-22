@@ -255,3 +255,19 @@ def test_los_secrets_se_leen_en_cada_recarga(monkeypatch):
     assert nube.ACTIVO
     assert bd.URL_POSTGRES == "postgresql://x"
     assert nube.CODIGO_INVITACION == "abc"
+
+
+def test_datos_de_ejemplo_con_pocas_conexiones(postgres, monkeypatch):
+    """En la nube cada conexión es un viaje a Neon: los datos de ejemplo se guardan de una vez."""
+    import datos_ejemplo
+
+    bd.esquema_sesion.set(bd.crear_clinica("Clínica Sol", "dueno", "secreta123"))
+    conexiones = []
+    abrir = bd._ConexionPostgres.__init__
+    monkeypatch.setattr(
+        bd._ConexionPostgres, "__init__",
+        lambda self, esquema: (conexiones.append(esquema), abrir(self, esquema))[1],
+    )
+    assert datos_ejemplo.cargar() == (4, 12, 212)
+    assert len(conexiones) <= 5  # antes eran más de 300
+    assert bd.contar_datos() == {"citas": 212, "doctores": 4, "pacientes": 12}

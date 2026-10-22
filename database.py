@@ -109,10 +109,18 @@ class _ConexionPostgres:
             (f'"{esquema}"' if esquema else "public",),
         )
 
-    def execute(self, consulta, parametros=()):
+    @staticmethod
+    def _traducir(consulta):
         # sqlite3 usa ? para los valores y psycopg usa %s
-        consulta = consulta.replace("%", "%%").replace("?", "%s")
-        return _Resultado(self._conexion.execute(consulta, parametros))
+        return consulta.replace("%", "%%").replace("?", "%s")
+
+    def execute(self, consulta, parametros=()):
+        return _Resultado(self._conexion.execute(self._traducir(consulta), parametros))
+
+    def executemany(self, consulta, filas):
+        """Ejecuta la misma consulta para muchas filas, enviándolas juntas (mucho más rápido)."""
+        with self._conexion.cursor() as cursor:
+            cursor.executemany(self._traducir(consulta), filas)
 
     def __enter__(self):
         return self

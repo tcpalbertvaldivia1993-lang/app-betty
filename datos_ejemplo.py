@@ -60,38 +60,52 @@ def cargar():
         return None
 
     random.seed(42)  # siempre los mismos datos
-    doctores_ids = [bd.agregar_doctor(*doctor) for doctor in DOCTORES]
-    pacientes_ids = [
-        bd.agregar_paciente(nombre, apellido, telefono, email, nacimiento)
-        for nombre, apellido, telefono, email, nacimiento in PACIENTES
-    ]
-
     hoy = date.today()
-    total = 0
-    for dia in dias_laborables(hoy - timedelta(days=14), hoy + timedelta(days=14)):
-        for doctor_id in doctores_ids:
-            # Entre 1 y 4 citas por doctor y día, en horas distintas
-            for hora in sorted(random.sample(HORAS, random.randint(1, 4))):
-                paciente_id = random.choice(pacientes_ids)
-                motivo = random.choice(MOTIVOS)
-                duracion = random.choice([30, 30, 30, 15])  # sin solapes: las horas van de 30 en 30
 
-                if dia < hoy:
-                    # agendar_cita no permite fechas pasadas, así que el historial se inserta directo
-                    estado = random.choices(
-                        ["atendida", "no_asistio", "cancelada"], weights=[8, 1, 1]
-                    )[0]
-                    with bd.obtener_conexion() as conexion:
-                        conexion.execute(
-                            """INSERT INTO citas (paciente_id, doctor_id, fecha, hora_inicio,
-                                                  duracion_min, motivo, estado)
-                               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                            (paciente_id, doctor_id, str(dia), hora, duracion, motivo, estado),
-                        )
-                    conexion.close()
-                else:
-                    bd.agendar_cita(paciente_id, doctor_id, dia, hora, duracion, motivo)
-                total += 1
+    # Todo con una sola conexión y en una sola transacción: en la nube cada consulta es un
+    # viaje de ida y vuelta a Neon, y guardar las citas una por una tardaba casi 2 minutos.
+    with bd.obtener_conexion() as conexion:
+        doctores_ids = [
+            conexion.execute(
+                "INSERT INTO doctores (nombre, especialidad, telefono) VALUES (?, ?, ?)", doctor
+            ).lastrowid
+            for doctor in DOCTORES
+        ]
+        pacientes_ids = [
+            conexion.execute(
+                """INSERT INTO pacientes (nombre, apellido, telefono, email, fecha_nacimiento, notas)
+                   VALUES (?, ?, ?, ?, ?, '')""",
+                paciente,
+            ).lastrowid
+            for paciente in PACIENTES
+        ]
+
+        citas = []
+        for dia in dias_laborables(hoy - timedelta(days=14), hoy + timedelta(days=14)):
+            for doctor_id in doctores_ids:
+                # Entre 1 y 4 citas por doctor y día, en horas distintas
+                for hora in sorted(random.sample(HORAS, random.randint(1, 4))):
+                    paciente_id = random.choice(pacientes_ids)
+                    motivo = random.choice(MOTIVOS)
+                    duracion = random.choice([30, 30, 30, 15])  # sin solapes: las horas van de 30 en 30
+                    estado = "programada"
+                    if dia < hoy:  # el historial ya tiene su resultado
+                        estado = random.choices(
+                            ["atendida", "no_asistio", "cancelada"], weights=[8, 1, 1]
+                        )[0]
+                    citas.append(
+                        (paciente_id, doctor_id, str(dia), hora, duracion, motivo, estado)
+                    )
+
+        # Se insertan directo (sin agendar_cita): las horas ya son distintas y no se solapan
+        conexion.executemany(
+            """INSERT INTO citas (paciente_id, doctor_id, fecha, hora_inicio,
+                                  duracion_min, motivo, estado)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            citas,
+        )
+    conexion.close()
+    total = len(citas)
 
     return len(doctores_ids), len(pacientes_ids), total
 
