@@ -235,3 +235,23 @@ def test_avisa_si_los_secrets_estan_mal(monkeypatch):
 def test_sin_secrets_no_hay_aviso():
     # En la computadora no hay archivo de Secrets: no se avisa nada
     assert nube.problema_con_los_secrets() is None
+
+
+def test_los_secrets_se_leen_en_cada_recarga(monkeypatch):
+    """Si se guarda DATABASE_URL con la app funcionando, la siguiente recarga ya usa la nube."""
+    monkeypatch.setattr(bd, "URL_POSTGRES", None)
+    monkeypatch.setattr(nube, "ACTIVO", False)
+    monkeypatch.setattr(nube, "CODIGO_INVITACION", "")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("CODIGO_INVITACION", raising=False)
+    monkeypatch.setattr(nube.st, "secrets", {"MODO_DEMO": "1"})
+    nube.configurar()
+    assert not nube.ACTIVO
+
+    monkeypatch.setattr(
+        nube.st, "secrets", {"DATABASE_URL": "postgresql://x", "CODIGO_INVITACION": "abc"}
+    )
+    nube.configurar()
+    assert nube.ACTIVO
+    assert bd.URL_POSTGRES == "postgresql://x"
+    assert nube.CODIGO_INVITACION == "abc"

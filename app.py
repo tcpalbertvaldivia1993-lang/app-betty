@@ -15,6 +15,7 @@ import nube
 from traducciones import IDIOMAS, t, t_error
 
 st.set_page_config(page_title=t("titulo_pestana"), page_icon="🏥", layout="wide")
+nube.configurar()
 if nube.ACTIVO:
     nube.preparar()
     bd.esquema_sesion.set(None)  # sin sesión no se ve ninguna clínica

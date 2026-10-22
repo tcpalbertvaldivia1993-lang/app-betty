@@ -57,9 +57,22 @@ def problema_con_los_secrets():
     return t("secrets_sin_url", nombres=", ".join(nombres) or "-")
 
 
-bd.URL_POSTGRES = bd.URL_POSTGRES or _secreto("DATABASE_URL")
 ACTIVO = bd.usa_postgres()
-CODIGO_INVITACION = _secreto("CODIGO_INVITACION") or ""
+CODIGO_INVITACION = os.environ.get("CODIGO_INVITACION", "")
+
+
+def configurar():
+    """Lee DATABASE_URL y el código de invitación. app.py la llama en cada recarga.
+
+    Se lee cada vez (y no solo al arrancar) porque en Streamlit Community Cloud los Secrets
+    se pueden cambiar mientras la app está funcionando.
+    """
+    global ACTIVO, CODIGO_INVITACION
+    url = _secreto("DATABASE_URL")
+    if url:
+        bd.URL_POSTGRES = url
+    ACTIVO = bd.usa_postgres()
+    CODIGO_INVITACION = _secreto("CODIGO_INVITACION") or CODIGO_INVITACION
 
 
 @st.cache_resource
