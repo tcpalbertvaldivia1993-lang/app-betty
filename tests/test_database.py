@@ -283,3 +283,24 @@ def test_ruta_configurable_con_variable_de_entorno(tmp_path):
         capture_output=True, text=True, check=True,
     )
     assert resultado.stdout.strip() == str(ruta)
+
+
+def test_exportar_copia_sqlite(ruta, datos, tmp_path):
+    paciente_id, doctor_id = datos
+    bd.agendar_cita(paciente_id, doctor_id, MANANA, "09:00", ruta=ruta)
+    bd.crear_usuario("dueno", "clave-segura", rol="administrador", ruta=ruta)
+
+    copia = tmp_path / "copia.db"
+    filas = bd.exportar_sqlite(copia, {"esquema": "", "nombre": "Prueba", "temporal": "0"}, ruta=ruta)
+    assert filas == {"pacientes": 1, "doctores": 1, "citas": 1, "usuarios": 1}
+    # La copia funciona con la app: mismos datos y misma contraseña
+    assert bd.contar_datos(copia) == {"citas": 1, "doctores": 1, "pacientes": 1}
+    assert bd.verificar_usuario("dueno", "clave-segura", copia)
+
+
+def test_fecha_de_la_ultima_copia(ruta):
+    assert bd.ultima_copia(ruta) is None
+    assert bd.dias_desde_ultima_copia(ruta) is None
+    bd.registrar_copia(ruta)
+    bd.registrar_copia(ruta)  # la segunda reemplaza a la primera
+    assert bd.dias_desde_ultima_copia(ruta) == 0

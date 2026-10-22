@@ -113,7 +113,13 @@ else:
     # Solo el administrador puede gestionar los usuarios del personal
     if datos_usuario["rol"] == "administrador":
         paginas.append(st.Page("paginas/usuarios.py", title=t("pag_usuarios"), icon="👥"))
+        paginas.append(st.Page("paginas/copia.py", title=t("pag_copia"), icon="💾"))
         paginas.append(st.Page("paginas/reiniciar.py", title=t("pag_reiniciar"), icon="⚠️"))
+        # Recordatorio de la copia semanal (no en las clínicas de demostración)
+        if not (nube.ACTIVO and clinica["temporal"]):
+            dias = bd.dias_desde_ultima_copia()
+            if dias is None or dias >= bd.DIAS_ENTRE_COPIAS:
+                st.sidebar.warning(t("aviso_copia_pendiente"))
     pagina = st.navigation(paginas)
 
 pagina.run()

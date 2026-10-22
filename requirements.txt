@@ -1,5 +1,6 @@
 streamlit==1.66.1
 pandas==3.0.6
+openpyxl==3.1.5  # para descargar la copia en Excel
 # Solo para la app publicada en la nube (PostgreSQL en Neon)
 psycopg[binary]==3.3.6
 psycopg-pool==3.3.3

@@ -18,7 +18,7 @@ echo === 2/4 Pruebas ===
 
 echo === 3/4 Empaquetando con PyInstaller ===
 .venv-win\Scripts\python -m PyInstaller --noconfirm --clean --onedir --name ClinicaCitas ^
-    --collect-all streamlit --copy-metadata streamlit ^
+    --collect-all streamlit --copy-metadata streamlit --collect-all openpyxl ^
     --add-data "app.py;." --add-data "database.py;." --add-data "traducciones.py;." ^
     --add-data "nube.py;." --add-data "datos_ejemplo.py;." --add-data "paginas;paginas" ^
     lanzador.py || goto :error

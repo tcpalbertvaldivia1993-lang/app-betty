@@ -51,8 +51,8 @@ Cada persona debe tener su propia cuenta; no compartan usuarios. El administrado
 
 | Rol | Qué puede hacer |
 | --- | --- |
-| Administrador | Todo: pacientes, doctores, citas, calendario, Usuarios y Reiniciar datos |
-| Personal | Todo excepto Usuarios y Reiniciar datos |
+| Administrador | Todo: pacientes, doctores, citas, calendario, Usuarios, Copia de seguridad y Reiniciar datos |
+| Personal | Todo excepto Usuarios, Copia de seguridad y Reiniciar datos |
 
 Siempre debe quedar al menos un administrador activo.
 
@@ -69,9 +69,23 @@ Todo se maneja desde el menú de la barra lateral:
 | Calendario | Ver las citas por día o por semana, con un gráfico por doctor |
 | Mi cuenta | Cambiar la propia contraseña |
 | Usuarios | Solo administrador: cuentas del personal |
+| Copia de seguridad | Solo administrador: descargar todos los datos (copia completa y Excel) |
 | Reiniciar datos | Solo administrador: borra todos los doctores, pacientes y citas |
 
 La app no deja agendar dos citas que se crucen con el mismo doctor ni citas en fechas pasadas. **Reiniciar datos** borra todo: úsalo solo si de verdad quieren empezar de cero.
+
+## Copia de seguridad (una vez por semana)
+
+El administrador descarga una copia de todos los datos de la clínica, por ejemplo cada viernes. Si pasan más de 7 días, la app lo recuerda en la barra lateral.
+
+1. En el menú, entra en **Copia de seguridad**.
+2. Pulsa **Preparar la copia** y espera unos segundos.
+3. Descarga los dos archivos:
+    - **Copia completa (.db)**: todos los datos. Es el archivo que sirve para recuperar la clínica si algo se pierde.
+    - **Excel (.xlsx)**: pacientes, doctores y citas, para verlos en Excel.
+4. Guárdalos en un USB o en tu nube (Google Drive, OneDrive) y conserva las copias de varias semanas.
+
+Los archivos tienen datos de los pacientes: no los envíes por WhatsApp ni por correo. Si un día hay que recuperar datos, pasa el archivo `.db` a quien administra la app.
 
 ## Problemas frecuentes
 

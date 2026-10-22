@@ -20,7 +20,6 @@ import getpass
 import json
 import os
 import shutil
-import sqlite3
 import sys
 import tomllib
 from datetime import datetime
@@ -31,12 +30,14 @@ import database as bd
 CARPETA_RESPALDOS = Path(__file__).parent / "respaldos_nube"
 ARCHIVO_SECRETS = Path(__file__).parent / ".streamlit" / "secrets.toml"
 
-# Orden de copia: primero las tablas a las que apuntan las citas
-TABLAS = ["pacientes", "doctores", "citas", "usuarios"]
+TABLAS = bd.TABLAS_COPIA  # pacientes, doctores, citas y usuarios
 
 
-def obtener_url_nube():
-    """La dirección de Neon: variable de entorno, .streamlit/secrets.toml o se pide por teclado."""
+def obtener_url_nube(preguntar=True):
+    """La dirección de Neon: variable de entorno, .streamlit/secrets.toml o se pide por teclado.
+
+    Con preguntar=False (copia automática, sin nadie delante) devuelve "" si no la encuentra.
+    """
     if os.environ.get("DATABASE_URL"):
         return os.environ["DATABASE_URL"]
     if ARCHIVO_SECRETS.exists():
@@ -44,6 +45,8 @@ def obtener_url_nube():
             url = tomllib.load(archivo).get("DATABASE_URL")
         if url:
             return url
+    if not preguntar:
+        return ""
     # getpass no muestra lo que se escribe (la dirección lleva la contraseña)
     return getpass.getpass("Pega la dirección de Neon (postgresql://...) y pulsa Enter: ").strip()
 
@@ -67,33 +70,16 @@ def _esquema_seguro(esquema):
 def respaldar_clinica(conexion, clinica, destino):
     """Copia una clínica de PostgreSQL a un archivo SQLite nuevo. Devuelve las filas por tabla."""
     esquema = _esquema_seguro(clinica["esquema"])
-    bd.crear_tablas(destino)  # mismas tablas que la app con SQLite
-    copia = sqlite3.connect(destino)
-    filas_por_tabla = {}
-    with copia:
-        for tabla in TABLAS:
-            filas = conexion.execute(f"SELECT * FROM {esquema}.{tabla} ORDER BY id").fetchall()
-            if filas:
-                columnas = list(filas[0])
-                copia.executemany(
-                    f"INSERT INTO {tabla} ({', '.join(columnas)}) "
-                    f"VALUES ({', '.join('?' * len(columnas))})",
-                    [tuple(fila.values()) for fila in filas],
-                )
-            filas_por_tabla[tabla] = len(filas)
-        # Datos para saber de qué clínica es la copia (la app ignora esta tabla)
-        copia.execute("CREATE TABLE respaldo_info (clave TEXT PRIMARY KEY, valor TEXT)")
-        copia.executemany(
-            "INSERT INTO respaldo_info VALUES (?, ?)",
-            [
-                ("esquema", clinica["esquema"]),
-                ("nombre", clinica["nombre"]),
-                ("temporal", "1" if clinica["temporal"] else "0"),
-                ("fecha_respaldo", datetime.now().isoformat(timespec="seconds")),
-            ],
-        )
-    copia.close()
-    return filas_por_tabla
+    filas = {
+        tabla: conexion.execute(f"SELECT * FROM {esquema}.{tabla} ORDER BY id").fetchall()
+        for tabla in TABLAS
+    }
+    bd.escribir_copia_sqlite(destino, filas, {
+        "esquema": clinica["esquema"],
+        "nombre": clinica["nombre"],
+        "temporal": "1" if clinica["temporal"] else "0",
+    })
+    return {tabla: len(filas[tabla]) for tabla in TABLAS}
 
 
 def respaldar(url, carpeta=CARPETA_RESPALDOS, incluir_demos=False):
@@ -144,11 +130,16 @@ def main():
                         help="copiar también las clínicas de demostración")
     parser.add_argument("--carpeta", type=Path, default=CARPETA_RESPALDOS,
                         help="carpeta donde guardar las copias (por defecto respaldos_nube/)")
+    parser.add_argument("--sin-preguntar", action="store_true",
+                        help="para la copia automática: no pedir la dirección por teclado")
     argumentos = parser.parse_args()
 
-    url = obtener_url_nube()
+    url = obtener_url_nube(preguntar=not argumentos.sin_preguntar)
+    if not url:
+        sys.exit("Falta la dirección de Neon: ponla en .streamlit/secrets.toml (ver README).")
     if not url.startswith("postgres"):
         sys.exit("Esa no parece una dirección de Neon: debe empezar por postgresql://")
+    print(f"=== Copia del {datetime.now():%Y-%m-%d %H:%M} ===")
     print("Copiando...")
     try:
         carpeta, resumen = respaldar(url, argumentos.carpeta, argumentos.incluir_demos)

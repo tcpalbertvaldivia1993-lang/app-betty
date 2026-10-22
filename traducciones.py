@@ -36,6 +36,7 @@ TEXTOS = {
     "pag_cuenta": {"es": "Mi cuenta", "en": "My account"},
     "pag_usuarios": {"es": "Usuarios", "en": "Users"},
     "pag_reiniciar": {"es": "Reiniciar datos", "en": "Reset data"},
+    "pag_copia": {"es": "Copia de seguridad", "en": "Backup"},
     "sesion": {"es": "👤 Sesión: **{usuario}** ({rol})", "en": "👤 Signed in: **{usuario}** ({rol})"},
     "boton_cerrar_sesion": {"es": "Cerrar sesión", "en": "Log out"},
 
@@ -260,6 +261,55 @@ TEXTOS = {
     },
 
     # ---------- Reiniciar datos ----------
+    # ---------- Copia de seguridad (paginas/copia.py) ----------
+    "copia_titulo": {"es": "💾 Copia de seguridad", "en": "💾 Backup"},
+    "copia_explicacion": {
+        "es": "Descarga una copia de todos los datos de la clínica y guárdala en un USB o en tu "
+              "nube (Google Drive, OneDrive). Hazlo una vez por semana. Si algún día se pierde o se "
+              "borra algo, con esta copia se puede recuperar.",
+        "en": "Download a copy of all the clinic's data and keep it on a USB drive or in your "
+              "cloud (Google Drive, OneDrive). Do it once a week. If anything is ever lost or "
+              "deleted, it can be recovered from this copy.",
+    },
+    "copia_nunca": {
+        "es": "Todavía no se ha descargado ninguna copia.",
+        "en": "No backup has been downloaded yet.",
+    },
+    "copia_vieja": {
+        "es": "La última copia es del {fecha} (hace {dias} días). Descarga una nueva.",
+        "en": "The last backup is from {fecha} ({dias} days ago). Download a new one.",
+    },
+    "copia_reciente": {
+        "es": "Última copia: {fecha}. ¡Bien hecho!",
+        "en": "Last backup: {fecha}. Well done!",
+    },
+    "copia_cuidado": {
+        "es": "Los archivos tienen datos de los pacientes: guárdalos en un lugar protegido y no "
+              "los envíes por WhatsApp ni por correo.",
+        "en": "The files contain patient data: keep them somewhere safe and don't send them by "
+              "WhatsApp or email.",
+    },
+    "boton_preparar_copia": {"es": "Preparar la copia", "en": "Prepare the backup"},
+    "preparando_copia": {"es": "Preparando la copia...", "en": "Preparing the backup..."},
+    "copia_lista": {
+        "es": "La copia está lista. Descarga los dos archivos:",
+        "en": "The backup is ready. Download both files:",
+    },
+    "boton_descargar_app": {"es": "⬇️ Copia completa (.db)", "en": "⬇️ Full backup (.db)"},
+    "ayuda_descargar_app": {
+        "es": "Todos los datos, también los usuarios. Es el archivo que sirve para recuperar la clínica.",
+        "en": "All the data, users included. This is the file used to restore the clinic.",
+    },
+    "boton_descargar_excel": {"es": "⬇️ Excel (.xlsx)", "en": "⬇️ Excel (.xlsx)"},
+    "ayuda_descargar_excel": {
+        "es": "Pacientes, doctores y citas, para verlos en Excel.",
+        "en": "Patients, doctors and appointments, to view in Excel.",
+    },
+    "aviso_copia_pendiente": {
+        "es": "💾 Hace tiempo que no descargas una copia de seguridad. Ve a **Copia de seguridad**.",
+        "en": "💾 It's been a while since you downloaded a backup. Go to **Backup**.",
+    },
+
     "reiniciar_titulo": {"es": "⚠️ Reiniciar datos", "en": "⚠️ Reset data"},
     "reiniciar_explicacion": {
         "es": "Borra todos los doctores, pacientes y citas para empezar de cero. "
