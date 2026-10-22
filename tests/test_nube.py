@@ -216,3 +216,22 @@ def test_lee_los_secrets_de_streamlit(monkeypatch):
     monkeypatch.setenv("CODIGO_INVITACION", "desde-entorno")
     assert nube._secreto("CODIGO_INVITACION") == "desde-entorno"
     assert nube._secreto("NO_EXISTE") is None
+
+
+def test_avisa_si_los_secrets_estan_mal(monkeypatch):
+    class SecretsRotos:
+        def keys(self):
+            raise ValueError("línea 1: postgresql://usuario:CLAVE@servidor")  # nunca se muestra
+
+    monkeypatch.setattr(nube.st, "secrets", {"MODO_DEMO": "1"})
+    assert "MODO_DEMO" in nube.problema_con_los_secrets()
+    monkeypatch.setattr(nube.st, "secrets", {"DATABASE_URL": "postgresql://x"})
+    assert nube.problema_con_los_secrets() is None
+    monkeypatch.setattr(nube.st, "secrets", SecretsRotos())
+    aviso = nube.problema_con_los_secrets()
+    assert "ValueError" in aviso and "CLAVE" not in aviso
+
+
+def test_sin_secrets_no_hay_aviso():
+    # En la computadora no hay archivo de Secrets: no se avisa nada
+    assert nube.problema_con_los_secrets() is None

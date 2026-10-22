@@ -326,6 +326,18 @@ TEXTOS = {
     "boton_probar_demo": {"es": "Crear clínica de prueba", "en": "Create test clinic"},
     "creando_clinica": {"es": "Creando la clínica...", "en": "Creating the clinic..."},
     "clinica_actual": {"es": "🏥 **{nombre}**", "en": "🏥 **{nombre}**"},
+    "secrets_sin_url": {
+        "es": "⚙️ La app no usa la base de datos en la nube: en los Secrets no hay DATABASE_URL. "
+              "Nombres encontrados: {nombres}",
+        "en": "⚙️ The app is not using the cloud database: there is no DATABASE_URL in the Secrets. "
+              "Names found: {nombres}",
+    },
+    "secrets_con_error": {
+        "es": "⚙️ La app no usa la base de datos en la nube: no se pudieron leer los Secrets "
+              "(error {tipo}). Revisa que cada valor esté entre comillas.",
+        "en": "⚙️ The app is not using the cloud database: the Secrets could not be read "
+              "(error {tipo}). Check that every value is in quotes.",
+    },
     "demo_aviso": {
         "es": "🧪 Clínica de demostración: se borra tras {horas} horas sin uso. No escribas datos reales.",
         "en": "🧪 Demo clinic: it is deleted after {horas} hours without use. Don't enter real data.",
