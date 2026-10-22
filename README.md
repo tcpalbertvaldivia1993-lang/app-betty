@@ -52,18 +52,20 @@ gratis en [Streamlit Community Cloud](https://share.streamlit.io) en **modo demo
    ```
 4. Pulsa **Deploy**. La dirección será algo como `https://<nombre>.streamlit.app`.
 
-En modo demostración (`demo.py`):
-- Se entra con el usuario `demo` y la contraseña `demo1234`, que se muestran en la pantalla de acceso.
-  No aparece la pantalla para crear el administrador, así que nadie puede adueñarse de la app.
-- Los datos de ejemplo se cargan solos, también después de **Reiniciar datos**.
-- No están **Mi cuenta** ni **Usuarios**, para que nadie cambie la contraseña de la demostración.
-- Todas las visitas comparten los mismos datos, y se borran cuando el servidor se reinicia.
-  **No sirve para datos reales de pacientes**: para la clínica, usa la instalación en Windows.
+En modo demostración (`demo.py`), **cada visita tiene su propia copia de la app**, privada y temporal:
+- La primera vez aparece la pantalla **Bienvenido** para crear su propio administrador, igual que
+  al instalar la app en una clínica. Ya hay datos de ejemplo para probar.
+- Nadie ve los datos de las demás visitas.
+- La dirección lleva un código (`?demo=...`): al recargar la página (F5) no se pierde nada, y
+  guardándola como favorito se puede volver más tarde. Sin el código, empieza una visita nueva.
+- Las visitas que llevan más de 24 horas sin usarse se borran solas. También se borra todo
+  cuando Streamlit reinicia el servidor. **No sirve para datos reales de pacientes**: para la
+  clínica, usa la instalación en Windows.
 
 Para probar el modo demostración en tu computadora:
 
 ```bash
-MODO_DEMO=1 CLINICA_BD=/tmp/demo.db .venv/bin/streamlit run app.py
+MODO_DEMO=1 .venv/bin/streamlit run app.py
 ```
 
 ## Instalación
@@ -124,5 +126,5 @@ Solo funciona con la base de datos vacía. Para volver a empezar, borra `clinica
 | `INSTALACION_CLINICA.md` | Guía de instalación para la clínica (va dentro del ZIP) |
 | `traducciones.py` | Textos de la app en español e inglés |
 | `datos_ejemplo.py` | Llena la base de datos con datos de prueba |
-| `demo.py` | Modo demostración para publicar la app en internet |
+| `demo.py` | Modo demostración para internet: una base de datos privada por visita |
 | `tests/` | Pruebas de `database.py`, de las traducciones y del modo demostración |

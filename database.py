@@ -9,6 +9,7 @@ import hmac
 import os
 import secrets
 import sqlite3
+from contextvars import ContextVar
 from datetime import date, datetime
 from pathlib import Path
 
@@ -20,12 +21,21 @@ from traducciones import ErrorValidacion
 # El programa para Windows (lanzador.py) la cambia con la variable de entorno CLINICA_BD.
 RUTA_BD = Path(os.environ.get("CLINICA_BD", Path(__file__).parent / "clinica.db"))
 
+# En la demostración por internet, cada visita usa su propia base de datos (ver demo.py).
+# app.py la pone al principio de cada recarga; si no se pone, se usa RUTA_BD.
+ruta_sesion = ContextVar("ruta_sesion", default=None)
+
+
+def ruta_actual(ruta=None):
+    """La ruta de la base que se va a usar: la indicada, la de la visita o RUTA_BD."""
+    return Path(ruta or ruta_sesion.get() or RUTA_BD)
+
 ESTADOS_CITA = ["programada", "atendida", "cancelada", "no_asistio"]
 
 
 def obtener_conexion(ruta=None):
     """Abre una conexión con las claves foráneas activadas."""
-    conexion = sqlite3.connect(ruta or RUTA_BD)
+    conexion = sqlite3.connect(ruta_actual(ruta))
     conexion.row_factory = sqlite3.Row  # permite leer columnas por nombre
     conexion.execute("PRAGMA foreign_keys = ON")
     return conexion
@@ -468,7 +478,7 @@ def contar_datos(ruta=None):
 
 def crear_respaldo(ruta=None):
     """Copia la base de datos a la carpeta respaldos/ y devuelve la ruta de la copia."""
-    ruta = Path(ruta or RUTA_BD)
+    ruta = ruta_actual(ruta)
     carpeta = ruta.parent / "respaldos"
     carpeta.mkdir(exist_ok=True)
     marca = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
