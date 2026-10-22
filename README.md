@@ -26,6 +26,9 @@ demostración sin instalar nada (ver [En internet](#en-internet-streamlit-commun
   empezar de cero; los usuarios se conservan. Pide marcar una casilla y escribir `BORRAR`
   (en inglés, `DELETE`). Antes de borrar guarda una copia en `respaldos/`.
 - **En internet**: varias clínicas, cada una con sus datos guardados, y una demostración temporal (ver más abajo).
+- **Copia de seguridad** (solo administradores): descarga todos los datos de la clínica en un
+  archivo de la app (`.db`, sirve para restaurar) y en Excel. La barra lateral recuerda hacerla si
+  pasaron más de 7 días.
 - **Inicio**: resumen de las citas de hoy y de los próximos 7 días.
 - **Pacientes**: registrar, buscar y editar pacientes.
 - **Doctores**: registrar doctores, desactivarlos y volver a activarlos.
@@ -99,6 +102,20 @@ propias, por ejemplo una vez por semana. Desde la carpeta del proyecto, en la te
   ponla en `.streamlit/secrets.toml` (`DATABASE_URL = "postgresql://..."`); ese archivo no se sube a Git.
 - `respaldos_nube/` no se sube a Git: las copias tienen datos de pacientes. Guárdalas en un lugar
   protegido y conserva varias, no solo la última.
+
+**Copia automática semanal**: el Programador de tareas de Windows ejecuta `copia_automatica.sh`
+cada viernes a las 18:00 (si la PC estaba apagada, en cuanto se encienda). Necesita la dirección de
+Neon en `.streamlit/secrets.toml` y anota el resultado en `respaldos_nube/registro.txt`. La tarea se
+creó con PowerShell:
+
+```powershell
+$accion = New-ScheduledTaskAction -Execute "wsl.exe" -Argument "-d Ubuntu -- bash /home/administrator/app-betty/copia_automatica.sh"
+$cuando = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Friday -At 18:00
+$ajustes = New-ScheduledTaskSettingsSet -StartWhenAvailable
+Register-ScheduledTask -TaskName "Copia de seguridad clinica" -Action $accion -Trigger $cuando -Settings $ajustes
+```
+
+Para quitarla: `Unregister-ScheduledTask -TaskName "Copia de seguridad clinica"`.
 
 **Comprobar una copia**: ábrela con la app en tu computadora y entra con los usuarios de esa
 clínica (usa una copia del archivo, porque la app puede escribir en él):
@@ -190,6 +207,7 @@ CLINICA_PG_PRUEBAS=postgresql://.../clinica_pruebas .venv/bin/python -m pytest
 | `lanzador.py` | Punto de entrada de `ClinicaCitas.exe`: arranca el servidor y abre el navegador |
 | `construir_windows.bat` | Construye el `.exe` y el ZIP para Windows |
 | `respaldar_nube.py` | Copia de seguridad de las clínicas de la nube (un SQLite por clínica) |
+| `copia_automatica.sh` | Copia semanal automática (la lanza el Programador de tareas de Windows) |
 | `restaurar_nube.py` | Restaura una clínica en la nube desde su copia |
 | `sql/resumen_clinicas.sql` | Consulta para Neon: resumen de los datos de cada clínica |
 | `GUIA_USO_CLINICA.md` | Guía de uso de la app en línea para la clínica |

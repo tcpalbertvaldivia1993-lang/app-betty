@@ -182,3 +182,27 @@ def test_si_falla_a_medias_borra_la_carpeta(clinicas, tmp_path, monkeypatch):
     with pytest.raises(RuntimeError):
         respaldar_nube.respaldar(URL_PRUEBAS, tmp_path)
     assert list(tmp_path.iterdir()) == []
+
+
+def test_la_copia_de_la_app_se_puede_restaurar(clinicas, tmp_path):
+    """El archivo que descarga el administrador en la app sirve para restaurar_nube.py."""
+    sol = clinicas["sol"]
+    bd.esquema_sesion.set(sol)
+    copia = tmp_path / "copia_clinica.db"
+    bd.exportar_sqlite(copia, {"esquema": sol, "nombre": "Clínica Sol", "temporal": "0"})
+    bd.reiniciar_datos()
+
+    assert restaurar_nube.restaurar(URL_PRUEBAS, copia) == sol
+    bd.esquema_sesion.set(sol)
+    assert bd.contar_datos() == {"citas": 212, "doctores": 4, "pacientes": 12}
+
+
+def test_copia_automatica_sin_direccion(monkeypatch, tmp_path):
+    """Sin nadie delante no se pide la dirección: el script termina con un mensaje claro."""
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setattr(respaldar_nube, "ARCHIVO_SECRETS", tmp_path / "no_existe.toml")
+    assert respaldar_nube.obtener_url_nube(preguntar=False) == ""
+    monkeypatch.setattr(sys, "argv", ["respaldar_nube.py", "--sin-preguntar", "--carpeta", str(tmp_path)])
+    with pytest.raises(SystemExit, match="secrets.toml"):
+        respaldar_nube.main()
+    assert list(tmp_path.iterdir()) == []

@@ -678,6 +678,85 @@ def estadisticas(desde, hasta, ruta=None):
     return tabla
 
 
+# ---------- Copias de seguridad ----------
+
+# Tablas que van en una copia, en este orden (las citas apuntan a pacientes y doctores)
+TABLAS_COPIA = ["pacientes", "doctores", "citas", "usuarios"]
+DIAS_ENTRE_COPIAS = 7  # se recuerda hacer una copia si pasaron más días
+
+
+def escribir_copia_sqlite(destino, filas_por_tabla, info):
+    """Guarda las filas ({tabla: [filas]}) en un archivo SQLite nuevo con el formato de la app.
+
+    Añade la tabla respaldo_info (la app la ignora) con `info` y la fecha, para que
+    restaurar_nube.py sepa de qué clínica es la copia.
+    """
+    crear_tablas(destino)
+    copia = sqlite3.connect(destino)
+    with copia:
+        for tabla in TABLAS_COPIA:
+            filas = filas_por_tabla.get(tabla, [])
+            if filas:
+                columnas = list(filas[0].keys())
+                copia.executemany(
+                    f"INSERT INTO {tabla} ({', '.join(columnas)}) "
+                    f"VALUES ({', '.join('?' * len(columnas))})",
+                    [tuple(fila[columna] for columna in columnas) for fila in filas],
+                )
+        copia.execute("CREATE TABLE respaldo_info (clave TEXT PRIMARY KEY, valor TEXT)")
+        info = {**info, "fecha_respaldo": datetime.now().isoformat(timespec="seconds")}
+        copia.executemany(
+            "INSERT INTO respaldo_info VALUES (?, ?)",
+            [(clave, str(valor)) for clave, valor in info.items()],
+        )
+    copia.close()
+
+
+def exportar_sqlite(destino, info, ruta=None):
+    """Copia los datos de la clínica actual a un archivo SQLite nuevo. Devuelve las filas por tabla."""
+    with obtener_conexion(ruta) as conexion:
+        filas = {
+            tabla: [dict(fila) for fila in conexion.execute(f"SELECT * FROM {tabla} ORDER BY id")]
+            for tabla in TABLAS_COPIA
+        }
+    conexion.close()
+    escribir_copia_sqlite(destino, filas, info)
+    return {tabla: len(filas[tabla]) for tabla in TABLAS_COPIA}
+
+
+def _preparar_ajustes(conexion):
+    # Tabla pequeña de cada clínica para recordar cosas como la fecha de la última copia
+    # (se crea al usarla, así sirve también para las clínicas creadas antes de existir)
+    conexion.execute("CREATE TABLE IF NOT EXISTS ajustes (clave TEXT PRIMARY KEY, valor TEXT)")
+
+
+def registrar_copia(ruta=None):
+    """Anota que ahora se descargó una copia de la clínica."""
+    with obtener_conexion(ruta) as conexion:
+        _preparar_ajustes(conexion)
+        conexion.execute(
+            """INSERT INTO ajustes (clave, valor) VALUES ('ultima_copia', ?)
+               ON CONFLICT (clave) DO UPDATE SET valor = excluded.valor""",
+            (datetime.now().isoformat(timespec="seconds"),),
+        )
+    conexion.close()
+
+
+def ultima_copia(ruta=None):
+    """Fecha y hora de la última copia descargada (datetime), o None si nunca se hizo."""
+    with obtener_conexion(ruta) as conexion:
+        _preparar_ajustes(conexion)
+        fila = conexion.execute("SELECT valor FROM ajustes WHERE clave = 'ultima_copia'").fetchone()
+    conexion.close()
+    return datetime.fromisoformat(fila["valor"]) if fila else None
+
+
+def dias_desde_ultima_copia(ruta=None):
+    """Días desde la última copia descargada, o None si nunca se hizo."""
+    ultima = ultima_copia(ruta)
+    return None if ultima is None else (datetime.now() - ultima).days
+
+
 # ---------- Reiniciar datos ----------
 
 # Orden de borrado: primero las citas, porque apuntan a doctores y pacientes
