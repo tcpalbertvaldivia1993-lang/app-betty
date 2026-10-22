@@ -41,6 +41,8 @@ if st.button(t("boton_reiniciar"), type="primary", disabled=not confirmado):
     respaldo, borrados = bd.reiniciar_datos()
     st.session_state["mensaje_reinicio"] = t(
         "reinicio_hecho", doctores=borrados["doctores"], pacientes=borrados["pacientes"],
-        citas=borrados["citas"], respaldo=f"respaldos/{respaldo.name}",
+        citas=borrados["citas"],
+        # En SQLite el respaldo es un archivo; en la nube, un esquema de PostgreSQL
+        respaldo=f"respaldos/{respaldo.name}" if hasattr(respaldo, "name") else respaldo,
     )
     st.rerun()

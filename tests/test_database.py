@@ -8,15 +8,29 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import database as bd  # noqa: E402
+from conftest import clinica_vacia  # noqa: E402
 
 MANANA = date.today() + timedelta(days=1)
 
 
 @pytest.fixture
-def ruta(tmp_path):
+def ruta_sqlite(tmp_path):
     ruta_bd = tmp_path / "prueba.db"
     bd.crear_tablas(ruta_bd)
     return ruta_bd
+
+
+@pytest.fixture(params=["sqlite", "postgres"])
+def ruta(request, tmp_path):
+    """Cada prueba se ejecuta con los dos motores: SQLite (un archivo) y PostgreSQL (la nube).
+
+    Con PostgreSQL devuelve None: las funciones usan la clínica de la sesión.
+    """
+    if request.param == "sqlite":
+        return request.getfixturevalue("ruta_sqlite")
+    request.getfixturevalue("postgres")
+    clinica_vacia()
+    return None
 
 
 @pytest.fixture
@@ -219,8 +233,10 @@ def test_migracion_base_antigua(tmp_path):
     assert bd.verificar_usuario("dueno", "clave-segura", ruta_vieja)
 
 
-def test_reiniciar_datos(ruta, datos):
-    paciente_id, doctor_id = datos
+def test_reiniciar_datos(ruta_sqlite):
+    ruta = ruta_sqlite
+    paciente_id = bd.agregar_paciente("Ana", "López", "555-1234", ruta=ruta)
+    doctor_id = bd.agregar_doctor("Dr. Pérez", "Medicina general", ruta=ruta)
     bd.agendar_cita(paciente_id, doctor_id, MANANA, "09:00", ruta=ruta)
     bd.crear_usuario("dueno", "clave-segura", rol="administrador", ruta=ruta)
 
@@ -237,9 +253,9 @@ def test_reiniciar_datos(ruta, datos):
     assert bd.agregar_doctor("Dr. Nuevo", "Pediatría", ruta=ruta) == 1
 
 
-def test_respaldos_no_se_pisan(ruta):
-    primero = bd.crear_respaldo(ruta)
-    segundo = bd.crear_respaldo(ruta)
+def test_respaldos_no_se_pisan(ruta_sqlite):
+    primero = bd.crear_respaldo(ruta_sqlite)
+    segundo = bd.crear_respaldo(ruta_sqlite)
     assert primero != segundo
     assert primero.exists() and segundo.exists()
 
