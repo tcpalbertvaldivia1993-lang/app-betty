@@ -2,6 +2,10 @@
 
 Aplicación web hecha con **Streamlit** y **SQLite** para gestionar las citas de los pacientes.
 
+**[▶️ Probar la demostración en línea](https://citas-clinica-2026.streamlit.app)**: no hay que
+instalar nada. Cada visita crea su propio administrador y tiene datos de ejemplo privados y
+temporales (ver [Demostración en internet](#demostración-en-internet-streamlit-community-cloud)).
+
 ## Funciones
 
 - **Idioma**: español o inglés, con el selector «🌐 Idioma / Language» de la barra lateral
